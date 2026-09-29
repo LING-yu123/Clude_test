@@ -290,9 +290,9 @@ sLab.innerHTML='<span>吸盘/底托反向</span><input type="range" min="0" max=
 document.getElementById('js').appendChild(sLab);
 const sls=sLab.querySelector('input'),slb=sLab.querySelector('b');
 sls.oninput=()=>{qs=+sls.value;demo=false;db.classList.remove('on')};
-let qm=0,qmc=0;
+let qm=180,qmc=180;   // 立柱初始旋转 180°（相机朝后）
 const mLab=document.createElement('label');
-mLab.innerHTML='<span>立柱自转（相机）</span><input type="range" min="-180" max="180" step="1" value="0"><b></b>';
+mLab.innerHTML='<span>立柱自转（相机）</span><input type="range" min="-180" max="180" step="1" value="180"><b></b>';
 document.getElementById('js').appendChild(mLab);
 const mls=mLab.querySelector('input'),mlb=mLab.querySelector('b');
 mls.oninput=()=>{qm=+mls.value};
