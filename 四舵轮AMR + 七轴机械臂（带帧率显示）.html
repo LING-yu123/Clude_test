@@ -47,6 +47,7 @@ input[type=range]{flex:1;accent-color:var(--accent)}
 #lp label{display:flex;align-items:center;gap:6px;margin:3px 0}
 #lp label span{width:64px}#lp label b{width:46px;text-align:right;font-weight:500}
 #lp button{padding:5px 0;font-size:12px;width:100%;margin-top:4px}
+#lp .on{background:var(--accent);border-color:var(--accent);color:#fff}
 button.lk.on{background:#dc2626;border-color:#dc2626;color:#fff}
 #tip{opacity:.75;font-variant-numeric:tabular-nums}
 </style>
@@ -92,7 +93,7 @@ button.lk.on{background:#dc2626;border-color:#dc2626;color:#fff}
   <div id="sgn"></div><div id="sgbtn"></div>
   <label style="display:flex;gap:6px;margin-top:6px"><input type="checkbox" id="sgo" checked>显示轴线标注</label>
   <div class="lg">绿 J5轴 · 橙 J7轴 · 蓝 J1轴 · 黄点 腕心 · 紫 肩→腕连线</div></details></div>
-<div id="lp"><details open><summary><b>雷达位姿</b></summary><div id="lps"></div><div style="font-size:11px;opacity:.7;margin-top:4px">相对车体中心（x 前 / y 上 / z 右）；偏航左偏为正，俯仰抬头为正，横滚右倾为正。点云按雷达自身姿态扫描。</div><button id="lpr">复位到默认位姿</button></details></div>
+<div id="lp"><details open><summary><b>雷达位姿</b></summary><div id="lpt" style="display:flex;gap:4px;margin-bottom:4px"></div><label style="margin:2px 0 4px"><input type="checkbox" id="lpe" checked>启用该雷达（青 / 橙 / 紫）</label><div id="lps"></div><div style="font-size:11px;opacity:.7;margin-top:4px">相对车体中心（x 前 / y 上 / z 右）；偏航左偏为正，俯仰抬头为正，横滚右倾为正。点云按雷达自身姿态扫描。</div><button id="lpr">复位到默认位姿</button></details></div>
 <div id="arm"><details open><summary><b>七轴机械臂</b></summary>
   <div id="js"></div><div id="pre"></div><div id="zn"></div><div id="tip" style="margin-top:8px"></div>
   <div style="margin-top:8px;font-size:12px"><b>吸盘抓取</b></div>
@@ -133,11 +134,16 @@ box(3.8,.25,3.4,dark,-3.3,7.625,0);        // 电池舱盖
 box(2.2,.25,1.6,acc,3.0,7.625,2.6);        // 显示/操作面板
 cyl(.4,.4,.35,M(0xdc2626,.2,.4),-5.0,7.675,-3.5);   // 急停按钮
 // Livox Mid-360：65×65×60 mm（1 单位 = 10 cm），扫描原点在光学窗口中心。方形底座 + 金属环 + 深色光学窗口带 + 顶盖
-const lidar=new THREE.Group();lidar.position.set(4.6,7.5+.3,0);robot.add(lidar);
-box(.65,.22,.65,M(0x3a424c,.6,.4),0,-.19,0,lidar);                                   // 方形底座
-cyl(.3,.33,.1,alu,0,-.03,0,lidar);                                                    // 金属过渡环
-cyl(.3,.3,.22,M(0x0b1116,.2,.1,{emissive:0x0d9488,emissiveIntensity:.35}),0,.13,0,lidar);   // 光学窗口带（转镜 + 激光收发）
-cyl(.27,.3,.06,alu,0,.27,0,lidar);                                                    // 顶盖
+const LIDARS=[],LCOL=[0x22e5d0,0xf59e0b,0xd946ef];   // 三台雷达：青 / 橙 / 紫，各自独立位姿
+function mkLidar(x,y,z){
+  const lidar=new THREE.Group();lidar.position.set(x,y,z);robot.add(lidar);
+  box(.65,.22,.65,M(0x3a424c,.6,.4),0,-.19,0,lidar);                                   // 方形底座
+  cyl(.3,.33,.1,alu,0,-.03,0,lidar);                                                    // 金属过渡环
+  cyl(.3,.3,.22,M(0x0b1116,.2,.1,{emissive:0x0d9488,emissiveIntensity:.35}),0,.13,0,lidar);   // 光学窗口带（转镜 + 激光收发）
+  cyl(.27,.3,.06,alu,0,.27,0,lidar);                                                    // 顶盖
+  lidar.userData.on=true;LIDARS.push(lidar);return lidar;
+}
+const lidar=mkLidar(4.6,7.8,0),lidar2=mkLidar(-4.6,7.8,-3.9),lidar3=mkLidar(-4.6,7.8,3.9);
 
 // —— 舵轮模块：整体放大 KS 倍，轮径约 25 cm ——
 const KS=1.7,R0=.75,R=R0*KS;
@@ -384,7 +390,7 @@ for(let i=0;i<NC;i++){const b=document.createElement('button');b.textContent=i+1
 const DEMO=['准备','前伸','吸取','举高','侧向','准备','收纳'],tv=new THREE.Vector3(),tipEl=document.getElementById('tip');
 
 // —— 雷达仿真：Livox Mid-360（360°×59°，-7°~52°，20 万点/s，10 Hz，0.1~40 m；1 单位 = 10 cm） ——
-const PPS=200000,ELMIN=-7*Math.PI/180,ELMAX=52*Math.PI/180,MINR=1,MAXR=400,NP=300000,HR=40,TP=Math.PI*2;
+const PPS=200000,ELMIN=-7*Math.PI/180,ELMAX=52*Math.PI/180,MINR=1,MAXR=400,NP=600000,HR=40,TP=Math.PI*2;
 const bx=[],cy2=[];let room=null,envK='gp';
 const envG={open:new THREE.Group(),gp:new THREE.Group(),hq:new THREE.Group()};
 Object.values(envG).forEach(g=>scene.add(g));
@@ -566,10 +572,10 @@ pGeo.setAttribute('position',new THREE.BufferAttribute(pPos,3));pGeo.setAttribut
 const cloud=new THREE.Points(pGeo,new THREE.PointsMaterial({size:.16,vertexColors:true}));cloud.frustumCulled=false;scene.add(cloud);
 // 垂直视场示意（-7°~52°）
 const fovG=new THREE.LatheGeometry([[0,0],[12*Math.cos(ELMIN),12*Math.sin(ELMIN)],[12*Math.cos(ELMAX),12*Math.sin(ELMAX)],[0,0]].map(a=>new THREE.Vector2(a[0],a[1])),48);
-const fov=new THREE.Group();
-fov.add(new THREE.Mesh(fovG,new THREE.MeshBasicMaterial({color:0x22e5d0,transparent:true,opacity:.07,side:THREE.DoubleSide,depthWrite:false})),
-        new THREE.Mesh(fovG,new THREE.MeshBasicMaterial({color:0x22e5d0,wireframe:true,transparent:true,opacity:.18})));
-lidar.add(fov);
+const fovs=LIDARS.map((l,k)=>{const g=new THREE.Group();
+  g.add(new THREE.Mesh(fovG,new THREE.MeshBasicMaterial({color:LCOL[k],transparent:true,opacity:.07,side:THREE.DoubleSide,depthWrite:false})),
+        new THREE.Mesh(fovG,new THREE.MeshBasicMaterial({color:LCOL[k],wireframe:true,transparent:true,opacity:.18})));
+  l.add(g);return g});
 const rdc=document.getElementById('rd'),rchk=document.getElementById('rdo');
 const ro=new THREE.Vector3(),hcol=new THREE.Color(),HLUT=(()=>{const c=new THREE.Color(),o=new Float32Array(66*3);for(let i=0;i<66;i++){c.setHSL(.66-.66*Math.min(1,i/64),1,.55);o[i*3]=c.r;o[i*3+1]=c.g;o[i*3+2]=c.b}return o})(),PHI1=0.7548776662466927,PHI2=0.5698402910802977;
 let wI=0,kSeq=0;
@@ -579,7 +585,8 @@ const cloudScene=new THREE.Scene();
 const cloud2=new THREE.Points(pGeo,new THREE.PointsMaterial({size:.32,vertexColors:true}));cloud2.frustumCulled=false;cloudScene.add(cloud2);
 const grid2=new THREE.GridHelper(200,20,0x1f6f66,0x123a35);cloudScene.add(grid2);
 const foot=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(12,7.5,10)),new THREE.LineBasicMaterial({color:0xf97316}));cloudScene.add(foot);
-const lidM=new THREE.Mesh(new THREE.SphereGeometry(.5,12,8),new THREE.MeshBasicMaterial({color:0xfacc15}));cloudScene.add(lidM);
+const lidMs=LIDARS.map((l,k)=>{const m=new THREE.Mesh(new THREE.SphereGeometry(.5,12,8),new THREE.MeshBasicMaterial({color:LCOL[k]}));cloudScene.add(m);return m});
+const rc=new THREE.Vector3();
 const cam2=new THREE.PerspectiveCamera(50,4/3,.1,800);
 let cyI=.8,cpI=.5,cdI=45,auto2=true,insetDrag=false;
 function inInset(e){const w=IW(),h=IH(),x=innerWidth-12-w,y=innerHeight-12-h;return rchk.checked&&e.clientX>=x&&e.clientX<=x+w&&e.clientY>=y&&e.clientY<=y+h}
@@ -623,11 +630,12 @@ function occCast(ox,oy,oz,dx,dy,dz){   // 返回最近的本体命中距离，�
   return best<1e9?best:-1;
 }
 function radarStep(dt){
-  const on=rchk.checked;cloud.visible=fov.visible=on;rdc.style.display=on?'block':'none';
+  const on=rchk.checked;cloud.visible=on;fovs.forEach((g,k)=>g.visible=on&&LIDARS[k].userData.on);rdc.style.display=on?'block':'none';
   if(!on)return;
   occUpdate();
-  lidar.getWorldPosition(ro);const me=lidar.matrixWorld.elements;   // 射线方向用雷达自身姿态
   const n=Math.min(10000,Math.max(1,Math.round(PPS*dt))),w0=wI;
+  for(const ld of LIDARS){if(!ld.userData.on)continue;
+  ld.getWorldPosition(ro);const me=ld.matrixWorld.elements;   // 射线方向用各雷达自身姿态
   for(let i=0;i<n;i++){
     kSeq++;   // 低差异序列近似非重复扫描花瓣
     const az=((kSeq*PHI1)%1)*TP,el=ELMIN+((kSeq*PHI2)%1)*(ELMAX-ELMIN);
@@ -638,6 +646,7 @@ function radarStep(dt){
     pPos[o]=x;pPos[o+1]=y;pPos[o+2]=z;
     const hb=(Math.max(0,Math.min(1,y/20))*64|0)*3;pCol[o]=HLUT[hb];pCol[o+1]=HLUT[hb+1];pCol[o+2]=HLUT[hb+2];
   }
+  }
   const cnt=wI-w0;   // 只上传本帧新写入的区段
   if(cnt>0){const s0=w0%NP;[pGeo.attributes.position,pGeo.attributes.color].forEach(a=>{
     if(s0+cnt<=NP){a.updateRange.offset=s0*3;a.updateRange.count=cnt*3}else{a.updateRange.offset=0;a.updateRange.count=-1}a.needsUpdate=true})}
@@ -647,10 +656,11 @@ function renderInset(dt){
   const W=IW(),H=IH(),x=innerWidth-12-W,y=12;
   if(auto2)cyI+=dt*.15;
   cam2.aspect=W/H;cam2.updateProjectionMatrix();
-  cam2.position.set(ro.x+cdI*Math.cos(cpI)*Math.sin(cyI),ro.y+cdI*Math.sin(cpI),ro.z+cdI*Math.cos(cpI)*Math.cos(cyI));
-  cam2.lookAt(ro.x,ro.y-2,ro.z);
-  foot.position.set(robot.position.x,robot.position.y+3.75,robot.position.z);foot.rotation.order='YZX';foot.rotation.set(robot.rotation.x,yaw,robot.rotation.z);lidM.position.copy(ro);
-  grid2.position.set(Math.round(ro.x/10)*10,0,Math.round(ro.z/10)*10);
+  rc.set(robot.position.x,robot.position.y+8,robot.position.z);   // 点云窗口以车体为中心
+  cam2.position.set(rc.x+cdI*Math.cos(cpI)*Math.sin(cyI),rc.y+cdI*Math.sin(cpI),rc.z+cdI*Math.cos(cpI)*Math.cos(cyI));
+  cam2.lookAt(rc.x,rc.y-2,rc.z);
+  foot.position.set(robot.position.x,robot.position.y+3.75,robot.position.z);foot.rotation.order='YZX';foot.rotation.set(robot.rotation.x,yaw,robot.rotation.z);LIDARS.forEach((l,k)=>{l.getWorldPosition(lidMs[k].position);lidMs[k].visible=l.userData.on});
+  grid2.position.set(Math.round(rc.x/10)*10,0,Math.round(rc.z/10)*10);
   renderer.setScissorTest(true);renderer.setViewport(x,y,W,H);renderer.setScissor(x,y,W,H);
   renderer.setClearColor(0x04120d,1);renderer.clear();renderer.render(cloudScene,cam2);
   renderer.setScissorTest(false);renderer.setViewport(0,0,innerWidth,innerHeight);renderer.setClearColor(0x000000,0);
@@ -1246,15 +1256,20 @@ document.getElementById('vov').onclick=()=>{fl.checked=false;if(envK==='open'){c
 function resize(){rdc.style.width=IW()+'px';rdc.style.height=IH()+'px';dcw.style.right=(IW()+20)+'px';renderer.setSize(innerWidth,innerHeight,false);camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix()}
 addEventListener('resize',resize);resize();
 
-// —— 雷达位姿控制：位置（cm，相对车体中心）+ 姿态（度，欧拉角 偏航 Y → 俯仰 Z → 横滚 X） ——
+// —— 雷达位姿控制：三台雷达各自独立。位置（cm，相对车体中心）+ 姿态（度，欧拉角 偏航 Y → 俯仰 Z → 横滚 X） ——
 (function(){
-  const DEF=[46,78,0,0,0,0],D=Math.PI/180,box=document.getElementById('lps'),ins=[],lbs=[];
-  const defs=[['前后 x',-60,60,1,'cm'],['高度 y',20,180,1,'cm'],['左右 z',-50,50,1,'cm'],['偏航',-180,180,1,'°'],['俯仰',-90,90,1,'°'],['横滚',-90,90,1,'°']];
-  lidar.rotation.order='YZX';
-  const apply=()=>{const v=ins.map(i=>+i.value);lidar.position.set(v[0]/10,v[1]/10,v[2]/10);lidar.rotation.set(v[5]*D,v[3]*D,v[4]*D);lbs.forEach((b,i)=>b.textContent=v[i]+defs[i][4])};
-  defs.forEach((d,i)=>{const l=document.createElement('label');l.innerHTML=`<span>${d[0]}</span><input type="range" min="${d[1]}" max="${d[2]}" step="${d[3]}" value="${DEF[i]}"><b></b>`;box.appendChild(l);const inp=l.querySelector('input');inp.oninput=apply;ins.push(inp);lbs.push(l.querySelector('b'))});
-  document.getElementById('lpr').onclick=()=>{ins.forEach((inp,i)=>inp.value=DEF[i]);apply()};
-  apply();
+  const DEFS=[[46,78,0,0,0,0],[-46,78,-39,0,0,0],[-46,78,39,0,0,0]],D=Math.PI/180,box=document.getElementById('lps'),ins=[],lbs=[],tabs=document.getElementById('lpt'),en=document.getElementById('lpe');
+  const vals=DEFS.map(d=>d.slice());let cur=0;
+  const defs=[['前后 x',-200,200,1,'cm'],['高度 y',0,250,1,'cm'],['左右 z',-150,150,1,'cm'],['偏航',-180,180,1,'°'],['俯仰',-180,180,1,'°'],['横滚',-180,180,1,'°']];
+  LIDARS.forEach(l=>l.rotation.order='YZX');
+  const apply=k=>{const v=vals[k],l=LIDARS[k];l.position.set(v[0]/10,v[1]/10,v[2]/10);l.rotation.set(v[5]*D,v[3]*D,v[4]*D)};
+  const show=()=>{ins.forEach((inp,i)=>{inp.value=vals[cur][i];lbs[i].textContent=vals[cur][i]+defs[i][4]});en.checked=LIDARS[cur].userData.on;[...tabs.children].forEach((b,k)=>b.classList.toggle('on',k===cur))};
+  defs.forEach((d,i)=>{const l=document.createElement('label');l.innerHTML=`<span>${d[0]}</span><input type="range" min="${d[1]}" max="${d[2]}" step="${d[3]}" value="0"><b></b>`;box.appendChild(l);const inp=l.querySelector('input');
+    inp.oninput=()=>{vals[cur][i]=+inp.value;lbs[i].textContent=inp.value+d[4];apply(cur)};ins.push(inp);lbs.push(l.querySelector('b'))});
+  ['雷达 1','雷达 2','雷达 3'].forEach((n,k)=>{const b=document.createElement('button');b.textContent=n;b.style.cssText='width:auto;flex:1;margin-top:0';b.onclick=()=>{cur=k;show()};tabs.appendChild(b)});
+  en.onchange=()=>{LIDARS[cur].userData.on=en.checked};
+  document.getElementById('lpr').onclick=()=>{vals[cur]=DEFS[cur].slice();apply(cur);show()};
+  LIDARS.forEach((_,k)=>apply(k));show();
   if(innerWidth<700)document.querySelector('#lp details').removeAttribute('open');
 })();
 // —— 界面小面板拖拽：在面板的空白处（标题、文字、背景）按住拖动；按钮/滑块/勾选框照常操作 ——
