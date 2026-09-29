@@ -595,7 +595,9 @@ occ(j4,0,0,0,.8,.8,.8);occ(j4,0,L3/2,0,.72,L3,.72);                         // J
 occ(j5,0,.175,0,.72,.35,.72);occ(j6,0,0,0,.68,.68,.76);occ(j7,0,.15,0,.6,.3,.6);occ(j7,0,.5,0,1.1,.3,1.1);   // 腕部
 occ(slide,0,.4,0,1.5,.1,2.9);occ(tray,.81,.75,0,.06,1.5,2.9);occ(tray,.68,.15,0,.4,.3,1.3);                     // 吸盘板、底托
 occ(mastG,0,PH/2,0,.3,PH,.3);occ(camU,0,0,0,.4,.205,.475);occ(camM,0,0,0,.4,.205,.475);occ(camL,0,0,0,.4,.205,.475);   // 立柱、三台相机
-occ(liftCar,0,0,0,.3,.5,.34);occ(liftRail,0,0,0,.12,RAIL_L,.12);            // 升降滑台与导轨
+occ(liftCar,0,0,0,.3,.5,.34);occ(liftRail,0,0,0,.12,RAIL_L,.12);occ(grpA,5.7,3.9,0,.6,1.4,9.8);occ(grpA,-5.7,3.9,0,.6,1.4,9.8);occ(grpB,5.7,4.4,0,.6,1.4,9.8);occ(grpB,-5.7,4.4,0,.6,1.4,9.8);   // 前后防撞条
+for(const M of[modsA,modsB])for(const k in M){occ(M[k].steer,0,.75,0,1.5,1.5,.9);occ(M[k].steer,0,.6,0,.9,1.2,.8)}   // 四个舵轮（车轮 + 转向叉），随转向和悬挂运动
+
 function occUpdate(){
   for(const b of OCC){
     let v=true;for(let p=b.o;p;p=p.parent)if(!p.visible){v=false;break}
