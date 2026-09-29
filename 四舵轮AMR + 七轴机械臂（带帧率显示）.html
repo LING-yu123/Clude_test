@@ -242,12 +242,14 @@ for(let r=0;r<5;r++)for(let c=0;c<10;c++){   // 5×10 = 50 个吸嘴，可逐个
 const tip=new THREE.Object3D();tip.position.y=1.3;j7.add(tip);
 // 3D 相机 RGB-D（迈尔微视 M4 Pro，95×80×41 mm）：装在立柱顶端；立柱经悬臂梁固连在 J1 回转座上，随 J1 一起转动，立柱高 0.8 m、偏离转盘中心 0.4 m。光轴朝臂前方（j1 局部 +x），下俯 18°
 const mastM=M(0xdfe4ea,.1,.55);   // 浅色非金属漆面
-const MH=4.0,MZ=2.0;   // 立柱高 0.8 m（转盘面→柱顶）；偏离转盘中心 0.4 m（局部单位 ×2 = 世界）
+const MH=4.0,MZ=2.0,MX=-1.5;   // MX：立柱沿 J1 局部 x 向车后移动 0.3 m（局部单位 ×2 = 世界）
+const MH_=MH;   // 立柱高 0.8 m（转盘面→柱顶）；偏离转盘中心 0.4 m（局部单位 ×2 = 世界）
 box(.5,.18,MZ+.25-.6,mastM,0,.09,(.6+MZ+.25)/2,j1);      // 悬臂梁：从 J1 回转座柱体侧面伸向立柱（固连在 J1 上）
-box(.6,.08,.6,mastM,0,.2,MZ,j1);                          // 立柱底板（固定）
-cyl(.26,.26,.1,dark,0,.29,MZ,j1);                         // 立柱回转轴承座（固定）
+box(Math.abs(MX)+.25,.18,.5,mastM,MX/2-.125,.09,MZ,j1);   // 悬臂梁第二段：沿 x 向车后延伸到立柱位置
+box(.6,.08,.6,mastM,MX,.2,MZ,j1);                          // 立柱底板（固定）
+cyl(.26,.26,.1,dark,MX,.29,MZ,j1);                         // 立柱回转轴承座（固定）
 // 立柱自转：立柱 + 相机云台绕自身竖直轴回转（叠加在 J1 转动之上）
-const mastG=new THREE.Group();mastG.position.set(0,.34,MZ);j1.add(mastG);
+const mastG=new THREE.Group();mastG.position.set(MX,.34,MZ);j1.add(mastG);
 const PH=MH-.34;                                          // 立柱本体高度（相对回转面）
 cyl(.15,.15,PH,mastM,0,PH/2,0,mastG);                     // 立柱（直径 6 cm）
 cyl(.18,.18,.1,acc,0,.4,0,mastG);cyl(.18,.18,.1,acc,0,PH-.9,0,mastG);   // 装饰环
