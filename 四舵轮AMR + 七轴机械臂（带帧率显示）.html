@@ -1052,9 +1052,10 @@ function planPick(){   // 依次规划：预抓取位 → 贴合位 → 抽出�
   apInfo.pm=md;apInfo.pc=pc;
   return{q1:r.qs[0],q2:r.qs[1],q3:r.qs[2],mode:md};
 }
+let MIN_D=12;   // 抓取时臂座到箱面的最小距离（局部单位，×10 = cm）：车头前表面在臂座前 4.4，12 即车头与箱面至少留约 76 cm（实测标柜/高柜全部箱子仍够得着）
 function findParking(cd,force){   // 为排在最前面的箱子找一个机械臂够得着的车位：在前后、左右两个方向搜索，移动量最小者优先
   const xf=cd.c.x-2.925,ap0=apInfo,sp=pos.clone(),pp=robot.position.clone(),pr=robot.rotation.clone(),Dcur=xf-(pos.x+1.6);
-  const top=force==='top',Ds=[...new Set((top?[Dcur,9,10,11,12,8,13,7,6,5.5,14,15]:[Dcur,15,14,16,13,17]).map(d=>Math.round(d*2)/2))].filter(d=>top?(d>=5.5&&d<=16):(d>=12&&d<=18)),cand=[];
+  const top=force==='top',Ds=[...new Set((top?[Dcur,9,10,11,12,8,13,7,6,5.5,14,15]:[Dcur,15,14,16,13,17]).map(d=>Math.round(d*2)/2))].filter(d=>top?(d>=Math.max(5.5,MIN_D)&&d<=16):(d>=Math.max(12,MIN_D)&&d<=18)),cand=[];
   for(const D of Ds)for(let z=-6.6;z<=6.61;z+=.6)cand.push({D,z,cost:Math.abs(D-Dcur)+Math.abs(z-sp.z)*1.5});
   cand.sort((a,b)=>a.cost-b.cost);
   // 先各距离各试一遍“不横移 / 略朝目标横移”（很快覆盖所有前后距离），再按移动量从小到大补充搜索
@@ -1089,7 +1090,7 @@ function autoStep(dt){
     const cd=apInfo.cands[apInfo.ci];apInfo.c=cd.c;apInfo.xf=cd.c.x-2.925;apInfo.cd=cd;
     const want=cd.l<5?'top':'front',dh=Math.hypot(apInfo.xf-(pos.x+1.6*Math.cos(yaw)),cd.c.z-(pos.z-1.6*Math.sin(yaw)));
     if(apInfo.force==null)apInfo.force=want;
-    if(dh>=4&&dh<=21)pl=planPick();           // 原位够得着：底盘不动
+    if(dh>=Math.max(4,MIN_D)&&dh<=21)pl=planPick();           // 原位够得着：底盘不动
     if(!pl){
       let pk=findParking(cd,apInfo.force);
       if(!pk&&apInfo.force==='top'){pk=findParking(cd,'front');if(pk){apInfo.force='front';apInfo.parkMsg='顶吸够不着，改前吸'}}
