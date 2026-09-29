@@ -74,7 +74,7 @@ button.lk.on{background:#dc2626;border-color:#dc2626;color:#fff}
   <label style="margin-top:6px"><input type="checkbox" id="rdo" checked>雷达仿真：Livox Mid-360</label>
   <div style="font-size:11px;opacity:.7;margin-top:2px">360°×59°（−7°~52°）· 20 万点/s · 10 Hz · 0.1–40 m</div>
   <label style="margin-top:6px"><input type="checkbox" id="dco" checked>3D 相机 RGB-D：迈尔微视 M4 Pro（立柱随 J1 转，自带自转）</label>
-  <div id="csel" class="g" style="grid-template-columns:repeat(3,1fr);margin:6px 0 4px"><button data-cam="U" style="font-size:12px;padding:5px 2px">上相机<br>可升降</button><button data-cam="M" class="on" style="font-size:12px;padding:5px 2px">中相机<br>正视前方</button><button data-cam="L" style="font-size:12px;padding:5px 2px">下相机<br>下俯 20°</button></div>
+  <div id="csel" class="g" style="grid-template-columns:repeat(3,1fr);margin:6px 0 4px"><button data-cam="U" style="font-size:12px;padding:5px 2px">上相机<br>可升降</button><button data-cam="M" class="on" style="font-size:12px;padding:5px 2px">中相机<br>下俯 10°</button><button data-cam="L" style="font-size:12px;padding:5px 2px">下相机<br>下俯 35°</button></div>
   <label style="margin-bottom:4px;font-size:12px"><span style="width:84px">上相机升降</span><input id="liftS" type="range" min="0" max="36" step="1" value="0"><b id="liftV" style="width:48px;text-align:right;font-weight:500">0 cm</b></label>
   <div style="font-size:11px;opacity:.7;margin-top:2px">iToF 深度 81°×61° · RGB 88°×56° · 0.3–5 m · 精度 ±4 mm+0.25%·depth · 12 fps</div>
 </div>
@@ -255,7 +255,7 @@ cyl(.15,.15,PH,mastM,0,PH/2,0,mastG);                     // 立柱（直径 6 c
 cyl(.18,.18,.1,acc,0,.4,0,mastG);cyl(.18,.18,.1,acc,0,PH-.9,0,mastG);   // 装饰环
 cyl(.22,.22,.06,dark,0,PH+.03,0,mastG);                   // 柱顶法兰
 box(.5,.06,.55,dark,0,PH+.09,0,mastG);                    // 相机托板
-// 立柱上共 3 台 M4 Pro：上相机（装在导轨滑台上，可升降）、中相机（原相机，正视前方）、下相机（固定，下俯 20°）
+// 立柱上共 3 台 M4 Pro：上相机（装在导轨滑台上，可升降）、中相机（下俯 10°）、下相机（固定，下俯 35°）
 function makeCam(y,x,tiltDown){   // 相机局部系：y 前、z 右、-x 上；rotation.z=-(90°+下俯角) 使光轴朝向 j1 局部 +x 并下俯 tiltDown°
   const g=new THREE.Group();g.position.set(x,y,0);g.rotation.z=-(90+tiltDown)*Math.PI/180;mastG.add(g);
   box(.4,.205,.475,M(0x2b323b,.5,.4),0,0,0,g);
@@ -266,8 +266,8 @@ function makeCam(y,x,tiltDown){   // 相机局部系：y 前、z 右、-x 上；
   return g;
 }
 const yM=PH+.3,yU0=yM+.75,LIFT_MAX=1.8;   // 中相机高度；上相机最低位；升降行程（局部单位 1.8 = 36 cm；保证最高处仍低于车厢顶）
-const camM=makeCam(yM,0,0);                                            // 中：正视前方（俯仰 0°）
-const camL=makeCam(yM-1.75,.32,20);                                     // 下：固定，下俯 20°
+const camM=makeCam(yM,0,10);                                           // 中：下俯 10°
+const camL=makeCam(yM-1.75,.32,35);                                    // 下：固定，下俯 35°
 box(.34,.14,.3,dark,.14,yM-1.75,0,mastG);                              // 下相机支架（从立柱伸出）
 const camU=makeCam(yU0,0,0);                                           // 上：可升降，正视前方
 cyl(.06,.06,LIFT_MAX+1.2,alu,-.34,PH+.09+(LIFT_MAX+1.2)/2,0,mastG);   // 升降导轨（在相机后方，不挡视线）
