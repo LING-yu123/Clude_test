@@ -606,7 +606,7 @@ function occUpdate(){
     m[0]=e[0];m[1]=e[4];m[2]=e[8];m[3]=e[12];m[4]=e[1];m[5]=e[5];m[6]=e[9];m[7]=e[13];m[8]=e[2];m[9]=e[6];m[10]=e[10];m[11]=e[14];
   }
 }
-function occCast(ox,oy,oz,dx,dy,dz){   // 返回最近的本体命中距离，无命中 -1；起点在包围盒内（如雷达被移进部件里）则忽略该盒
+function occCast(ox,oy,oz,dx,dy,dz){   // 返回最近的本体命中距离，无命中 -1，被近处（最小量程内）的本体挡住 -2；起点在包围盒内（如雷达被移进部件里）则忽略该盒
   let best=1e9;
   for(let i=0,n=OCC.length;i<n;i++){
     const b=OCC[i];if(!b.on)continue;const m=b.m;
@@ -618,7 +618,7 @@ function occCast(ox,oy,oz,dx,dy,dz){   // 返回最近的本体命中距离，�
     if(qy>1e-9||qy<-1e-9){a=(-b.hy-py)/qy;e=(b.hy-py)/qy;if(a>e){q=a;a=e;e=q}if(a>t0)t0=a;if(e<t1)t1=e}else if(py<-b.hy||py>b.hy)continue;
     if(t0>t1||t1<=MINR||t0>=best)continue;
     if(qz>1e-9||qz<-1e-9){a=(-b.hz-pz)/qz;e=(b.hz-pz)/qz;if(a>e){q=a;a=e;e=q}if(a>t0)t0=a;if(e<t1)t1=e}else if(pz<-b.hz||pz>b.hz)continue;
-    if(t0<=t1&&t0>MINR&&t0<best)best=t0;
+    if(t0<=t1){if(t0>MINR){if(t0<best)best=t0}else if(t0>=-.05)return -2}   // 入口落在最小量程内（雷达紧贴车体）：射线进入本体，被挡住且不产生点，不能穿过去
   }
   return best<1e9?best:-1;
 }
@@ -632,7 +632,7 @@ function radarStep(dt){
     kSeq++;   // 低差异序列近似非重复扫描花瓣
     const az=((kSeq*PHI1)%1)*TP,el=ELMIN+((kSeq*PHI2)%1)*(ELMAX-ELMIN);
     const ce=Math.cos(el),lx=ce*Math.cos(az),ly=Math.sin(el),lz=-ce*Math.sin(az),dx=me[0]*lx+me[4]*ly+me[8]*lz,dy=me[1]*lx+me[5]*ly+me[9]*lz,dz=me[2]*lx+me[6]*ly+me[10]*lz;
-    let t=cast(ro.x,ro.y,ro.z,dx,dy,dz);const tb=occCast(ro.x,ro.y,ro.z,dx,dy,dz);if(tb>0&&(t<0||tb<t))t=tb;   // 本体挡在前面则命中本体
+    let t=cast(ro.x,ro.y,ro.z,dx,dy,dz);const tb=occCast(ro.x,ro.y,ro.z,dx,dy,dz);if(tb===-2)continue;if(tb>0&&(t<0||tb<t))t=tb;   // 本体挡在前面则命中本体
     if(t<0)continue;
     const x=ro.x+dx*t,y=ro.y+dy*t,z=ro.z+dz*t,o=(wI++%NP)*3;
     pPos[o]=x;pPos[o+1]=y;pPos[o+2]=z;
