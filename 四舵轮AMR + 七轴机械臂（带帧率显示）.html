@@ -1197,6 +1197,28 @@ document.getElementById('vov').onclick=()=>{fl.checked=false;if(envK==='open'){c
 function resize(){rdc.style.width=IW()+'px';rdc.style.height=IH()+'px';dcw.style.right=(IW()+20)+'px';renderer.setSize(innerWidth,innerHeight,false);camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix()}
 addEventListener('resize',resize);resize();
 
+// —— 界面小面板拖拽：在面板的空白处（标题、文字、背景）按住拖动；按钮/滑块/勾选框照常操作 ——
+(function(){
+  const panels=['top','ui','arm','sg'].map(id=>document.getElementById(id)).filter(Boolean);
+  let z=20;
+  const clampP=el=>{const w=el.offsetWidth,h=el.offsetHeight;el.style.left=Math.min(Math.max(0,innerWidth-w),Math.max(0,el.offsetLeft))+'px';el.style.top=Math.min(Math.max(0,innerHeight-h),Math.max(0,el.offsetTop))+'px'};
+  panels.forEach(el=>{
+    el.style.cursor='move';el.style.touchAction='none';
+    el.addEventListener('pointerdown',e=>{   // 移动超过 4 px 才算拖拽，否则仍是普通点击（如标题折叠）
+      if(e.button!==0||e.target.closest('input,button,select,textarea,a'))return;
+      const r=el.getBoundingClientRect(),ox=e.clientX-r.left,oy=e.clientY-r.top,sx=e.clientX,sy=e.clientY;let on=false;
+      const mv=ev=>{
+        if(!on){if(Math.hypot(ev.clientX-sx,ev.clientY-sy)<4)return;on=true;
+          el.style.width=r.width+'px';el.style.maxWidth='none';el.style.right='auto';el.style.bottom='auto';el.style.zIndex=++z;
+          try{el.setPointerCapture(e.pointerId)}catch(_){}}
+        el.style.left=Math.min(Math.max(0,innerWidth-r.width),Math.max(0,ev.clientX-ox))+'px';el.style.top=Math.min(Math.max(0,innerHeight-40),Math.max(0,ev.clientY-oy))+'px'};
+      const up=()=>{el.removeEventListener('pointermove',mv);el.removeEventListener('pointerup',up);el.removeEventListener('pointercancel',up);
+        if(on)el.addEventListener('click',ev=>ev.preventDefault(),{capture:true,once:true})};
+      el.addEventListener('pointermove',mv);el.addEventListener('pointerup',up);el.addEventListener('pointercancel',up);
+    });
+  });
+  addEventListener('resize',()=>panels.forEach(el=>{if(el.style.right==='auto')clampP(el)}));
+})();
 const TAU=Math.PI*2,clock=new THREE.Clock();
 // 性能调度器：高频运动保持 60 FPS，重计算任务按 10–30 Hz 执行。
 let perfT=0,radarT=0,logicT=0;
