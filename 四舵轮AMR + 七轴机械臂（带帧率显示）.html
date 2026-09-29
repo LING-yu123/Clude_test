@@ -1202,6 +1202,22 @@ const TAU=Math.PI*2,clock=new THREE.Clock();
 let perfT=0,radarT=0,logicT=0;
 // 性能显示：帧率 + JS 各部分平均耗时（渲染的 GPU 时间不在其中，看帧率即可）
 const fpsEl=document.createElement('div');fpsEl.style.cssText='font-size:12px;opacity:.85;font-family:ui-monospace,monospace;margin-top:2px';document.getElementById('top').appendChild(fpsEl);
+// 测距：车体最前端（前防撞条前表面中心）→ 最外面（靠门一侧）一排现存箱子的外表面，沿集装箱长度方向（世界 x）
+const dstEl=document.createElement('div');dstEl.style.cssText='font-size:13px;margin-top:2px;font-variant-numeric:tabular-nums';document.getElementById('top').appendChild(dstEl);
+const dstLine=new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(),new THREE.Vector3(1,0,0)]),new THREE.LineBasicMaterial({color:0xfacc15,depthTest:false}));dstLine.renderOrder=12;dstLine.frustumCulled=false;dstLine.visible=false;scene.add(dstLine);
+const dstP=new THREE.Vector3();
+function rangeStep(){
+  const E=ENV[envK];
+  if(!E.cartons||!E.exist){dstEl.textContent='📏 车头→最外侧箱子：当前场景无货物';dstLine.visible=false;return}
+  let fx=Infinity;
+  for(let i=0;i<E.cartons.length;i++)if(E.exist[i]&&E.cartons[i][0]<fx)fx=E.cartons[i][0];
+  if(fx===Infinity){dstEl.textContent='📏 车头→最外侧箱子：货物已卸完';dstLine.visible=false;return}
+  fx-=2.925;   // 最外侧箱子的靠门（外）表面，箱长 5.85 的一半
+  dstP.set(6.0,chK==='A'?3.9:4.4,0);robot.localToWorld(dstP);   // 前防撞条前表面中心
+  const d=(fx-dstP.x)*10;   // 1 单位 = 10 cm → cm
+  dstEl.textContent=`📏 车头→最外侧箱子：${d>=0?(d/100).toFixed(2)+' m':'已越过 '+(-d/100).toFixed(2)+' m'}`;
+  const a=dstLine.geometry.attributes.position;a.setXYZ(0,dstP.x,dstP.y,dstP.z);a.setXYZ(1,fx,dstP.y,dstP.z);a.needsUpdate=true;dstLine.visible=true;
+}
 const PF={n:0,t0:performance.now(),js:0,radar:0,cam:0,logic:0,rend:0};
 setEnv('gp');setChassis('B');
 (function loop(){
@@ -1262,6 +1278,7 @@ setEnv('gp');setChassis('B');
   camera.lookAt(ctr);
   st.textContent=(Math.abs(vx)+Math.abs(vy)+Math.abs(w)<.05)?'待机':`Vx ${vx.toFixed(1)}  Vy ${vy.toFixed(1)}  ω ${w.toFixed(2)}`;
   an.textContent='舵角 '+txt.join('  ')+(chK==='A'?'  ·  跷跷板 '+(rkC-zbeta/D).toFixed(1)+'°  车体侧倾 '+(zr/D).toFixed(1)+'°':'  ·  悬挂行程(cm) '+SKEY.map((k,i)=>k+' '+(dyS[i]*10).toFixed(1)+(lockB[k]?'🔒':'')).join('  ')+'  车体侧倾 '+(zr/D).toFixed(1)+'° 俯仰 '+(zp/D).toFixed(1)+'°');
+  rangeStep();
   const _b=performance.now();renderer.render(scene,camera);
   renderInset(dt);
   const _c=performance.now();PF.rend+=_c-_b;PF.js+=_b-_a;PF.n++;
