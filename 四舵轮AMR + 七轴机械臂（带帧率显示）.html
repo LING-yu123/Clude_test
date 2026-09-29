@@ -271,7 +271,8 @@ const camM=makeCam(yMid,0,0);                                          // 中：
 const camL=makeCam(yLow,.32,20);                                        // 下：固定，下俯 20°
 box(.34,.14,.3,dark,.14,yLow,0,mastG);                              // 下相机支架（从立柱伸出）
 const camU=makeCam(yU0,0,0);                                           // 上：可升降，正视前方
-cyl(.06,.06,LIFT_MAX+1.2,alu,-.34,PH+.09+(LIFT_MAX+1.2)/2,0,mastG);   // 升降导轨（在相机后方，不挡视线）
+const RAIL_L=4.0,RAIL_Y0=yU0-RAIL_L/2+.7;   // 升降导轨：长 0.8 m（局部 4.0），上端高出上相机 0.7 局部单位，下端向下延伸
+const liftRail=cyl(.06,.06,RAIL_L,alu,-.34,RAIL_Y0,0,mastG);   // 升降导轨（在相机后方，不挡视线），随上相机一起升降
 const liftCar=box(.3,.5,.34,dark,-.22,yU0,0,mastG);                  // 滑台（连接导轨与上相机）
 let camAct=camM,liftC=0;   // 当前用于 RGB-D 仿真的相机；升降当前位置（局部单位）
 
@@ -1280,7 +1281,7 @@ setEnv('gp');setChassis('B');
   const R7=qc.map((v,i)=>(v+(OFF[i]||0))*D);
   j1.rotation.y=R7[0];j2.rotation.z=-R7[1];j3.rotation.z=-R7[2];j4.rotation.z=-R7[3];
   j5.rotation.y=R7[4];j6.rotation.z=-R7[5];j7.rotation.y=R7[6];
-  const liftT=+document.getElementById('liftS').value/20;liftC+=(liftT-liftC)*Math.min(1,dt*4);camU.position.y=yU0+liftC;liftCar.position.y=yU0+liftC;document.getElementById('liftV').textContent=Math.round(liftC*20)+' cm';
+  const liftT=+document.getElementById('liftS').value/20;liftC+=(liftT-liftC)*Math.min(1,dt*4);camU.position.y=yU0+liftC;liftCar.position.y=yU0+liftC;liftRail.position.y=RAIL_Y0+liftC;document.getElementById('liftV').textContent=Math.round(liftC*20)+' cm';
   qmc+=(qm-qmc)*Math.min(1,dt*4);mastG.rotation.y=qmc*D;mlb.textContent=Math.round(qmc)+'°';
   const rkT=document.getElementById('rkA').checked?8*Math.sin(performance.now()/1000*1.3):+document.getElementById('rkS').value;
   rkC+=(rkT-rkC)*Math.min(1,dt*6);rockP.rotation.x=zbeta-rkC*D;document.getElementById('rkV').textContent=(rkC-zbeta/D).toFixed(1)+'°';
