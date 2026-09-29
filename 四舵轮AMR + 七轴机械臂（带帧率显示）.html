@@ -42,6 +42,11 @@ input[type=range]{flex:1;accent-color:var(--accent)}
 #dcr{width:200px;height:113px}#dcc{width:151px;height:113px}
 #dcw span{position:absolute;left:5px;top:3px;font-size:9px;color:#fde68a;text-shadow:0 0 3px #000}
 #dlg{height:5px}
+#lp{position:absolute;left:404px;bottom:calc(12px + env(safe-area-inset-bottom,0px));width:236px;background:var(--panel);backdrop-filter:blur(8px);border-radius:12px;padding:8px 12px;font-size:12px}
+#lp summary{cursor:pointer;font-size:14px;margin-bottom:4px}
+#lp label{display:flex;align-items:center;gap:6px;margin:3px 0}
+#lp label span{width:64px}#lp label b{width:46px;text-align:right;font-weight:500}
+#lp button{padding:5px 0;font-size:12px;width:100%;margin-top:4px}
 button.lk.on{background:#dc2626;border-color:#dc2626;color:#fff}
 #tip{opacity:.75;font-variant-numeric:tabular-nums}
 </style>
@@ -87,6 +92,7 @@ button.lk.on{background:#dc2626;border-color:#dc2626;color:#fff}
   <div id="sgn"></div><div id="sgbtn"></div>
   <label style="display:flex;gap:6px;margin-top:6px"><input type="checkbox" id="sgo" checked>显示轴线标注</label>
   <div class="lg">绿 J5轴 · 橙 J7轴 · 蓝 J1轴 · 黄点 腕心 · 紫 肩→腕连线</div></details></div>
+<div id="lp"><details open><summary><b>雷达位姿</b></summary><div id="lps"></div><div style="font-size:11px;opacity:.7;margin-top:4px">相对车体中心（x 前 / y 上 / z 右）；偏航左偏为正，俯仰抬头为正，横滚右倾为正。点云按雷达自身姿态扫描。</div><button id="lpr">复位到默认位姿</button></details></div>
 <div id="arm"><details open><summary><b>七轴机械臂</b></summary>
   <div id="js"></div><div id="pre"></div><div id="zn"></div><div id="tip" style="margin-top:8px"></div>
   <div style="margin-top:8px;font-size:12px"><b>吸盘抓取</b></div>
@@ -580,7 +586,7 @@ function inInset(e){const w=IW(),h=IH(),x=innerWidth-12-w,y=innerHeight-12-h;ret
 function radarStep(dt){
   const on=rchk.checked;cloud.visible=fov.visible=on;rdc.style.display=on?'block':'none';
   if(!on)return;
-  lidar.getWorldPosition(ro);const me=robot.matrixWorld.elements;
+  lidar.getWorldPosition(ro);const me=lidar.matrixWorld.elements;   // 射线方向用雷达自身姿态
   const n=Math.min(10000,Math.max(1,Math.round(PPS*dt))),w0=wI;
   for(let i=0;i<n;i++){
     kSeq++;   // 低差异序列近似非重复扫描花瓣
@@ -1199,9 +1205,20 @@ document.getElementById('vov').onclick=()=>{fl.checked=false;if(envK==='open'){c
 function resize(){rdc.style.width=IW()+'px';rdc.style.height=IH()+'px';dcw.style.right=(IW()+20)+'px';renderer.setSize(innerWidth,innerHeight,false);camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix()}
 addEventListener('resize',resize);resize();
 
+// —— 雷达位姿控制：位置（cm，相对车体中心）+ 姿态（度，欧拉角 偏航 Y → 俯仰 Z → 横滚 X） ——
+(function(){
+  const DEF=[46,78,0,0,0,0],D=Math.PI/180,box=document.getElementById('lps'),ins=[],lbs=[];
+  const defs=[['前后 x',-60,60,1,'cm'],['高度 y',20,180,1,'cm'],['左右 z',-50,50,1,'cm'],['偏航',-180,180,1,'°'],['俯仰',-90,90,1,'°'],['横滚',-90,90,1,'°']];
+  lidar.rotation.order='YZX';
+  const apply=()=>{const v=ins.map(i=>+i.value);lidar.position.set(v[0]/10,v[1]/10,v[2]/10);lidar.rotation.set(v[5]*D,v[3]*D,v[4]*D);lbs.forEach((b,i)=>b.textContent=v[i]+defs[i][4])};
+  defs.forEach((d,i)=>{const l=document.createElement('label');l.innerHTML=`<span>${d[0]}</span><input type="range" min="${d[1]}" max="${d[2]}" step="${d[3]}" value="${DEF[i]}"><b></b>`;box.appendChild(l);const inp=l.querySelector('input');inp.oninput=apply;ins.push(inp);lbs.push(l.querySelector('b'))});
+  document.getElementById('lpr').onclick=()=>{ins.forEach((inp,i)=>inp.value=DEF[i]);apply()};
+  apply();
+  if(innerWidth<700)document.querySelector('#lp details').removeAttribute('open');
+})();
 // —— 界面小面板拖拽：在面板的空白处（标题、文字、背景）按住拖动；按钮/滑块/勾选框照常操作 ——
 (function(){
-  const panels=['top','ui','arm','sg'].map(id=>document.getElementById(id)).filter(Boolean);
+  const panels=['top','ui','arm','sg','lp'].map(id=>document.getElementById(id)).filter(Boolean);
   let z=20;
   const clampP=el=>{const w=el.offsetWidth,h=el.offsetHeight;el.style.left=Math.min(Math.max(0,innerWidth-w),Math.max(0,el.offsetLeft))+'px';el.style.top=Math.min(Math.max(0,innerHeight-h),Math.max(0,el.offsetTop))+'px'};
   panels.forEach(el=>{
