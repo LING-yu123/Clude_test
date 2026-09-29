@@ -583,16 +583,55 @@ const lidM=new THREE.Mesh(new THREE.SphereGeometry(.5,12,8),new THREE.MeshBasicM
 const cam2=new THREE.PerspectiveCamera(50,4/3,.1,800);
 let cyI=.8,cpI=.5,cdI=45,auto2=true,insetDrag=false;
 function inInset(e){const w=IW(),h=IH(),x=innerWidth-12-w,y=innerHeight-12-h;return rchk.checked&&e.clientX>=x&&e.clientX<=x+w&&e.clientY>=y&&e.clientY<=y+h}
+// —— 机器人本体对雷达的遮挡：车体、机械臂各连杆/关节、吸盘、立柱和相机，用随骨架运动的有向包围盒近似（射线在各部件局部系里做 slab 求交） ——
+const OCC=[],_im=new THREE.Matrix4();
+const occ=(o,cx,cy,cz,w,h,d)=>OCC.push({o,cx,cy,cz,hx:w/2,hy:h/2,hz:d/2,m:new Float64Array(12),on:false});
+occ(grpA,0,4.95,0,10.8,4.6,10);occ(grpB,0,5.425,0,10.8,3.65,10);             // 车体（A / B 两种底盘）
+occ(robot,0,7.375,0,10.6,.25,9.8);occ(robot,-3.3,7.625,0,3.8,.25,3.4);      // 顶板、电池舱盖
+occ(AB,0,.09,0,1.8,.18,1.8);occ(j1,0,.25,0,1.4,.5,1.4);                     // 机械臂底座、J1 回转座
+occ(j2,0,0,0,1.1,1.1,1.05);occ(j2,0,L1/2,0,.6,L1,.7);                       // J2 关节、大臂
+occ(j3,0,0,0,.92,.92,.9);occ(j3,0,L2/2,0,.5,L2,.6);                         // J3 关节、小臂
+occ(j4,0,0,0,.8,.8,.8);occ(j4,0,L3/2,0,.72,L3,.72);                         // J4 关节、前臂
+occ(j5,0,.175,0,.72,.35,.72);occ(j6,0,0,0,.68,.68,.76);occ(j7,0,.15,0,.6,.3,.6);occ(j7,0,.5,0,1.1,.3,1.1);   // 腕部
+occ(slide,0,.4,0,1.5,.1,2.9);occ(tray,.81,.75,0,.06,1.5,2.9);occ(tray,.68,.15,0,.4,.3,1.3);                     // 吸盘板、底托
+occ(mastG,0,PH/2,0,.3,PH,.3);occ(camU,0,0,0,.4,.205,.475);occ(camM,0,0,0,.4,.205,.475);occ(camL,0,0,0,.4,.205,.475);   // 立柱、三台相机
+occ(liftCar,0,0,0,.3,.5,.34);occ(liftRail,0,0,0,.12,RAIL_L,.12);            // 升降滑台与导轨
+function occUpdate(){
+  for(const b of OCC){
+    let v=true;for(let p=b.o;p;p=p.parent)if(!p.visible){v=false;break}
+    b.on=v;if(!v)continue;
+    _im.copy(b.o.matrixWorld).invert();const e=_im.elements,m=b.m;   // 世界 → 部件局部（含缩放，t 参数保持不变）
+    m[0]=e[0];m[1]=e[4];m[2]=e[8];m[3]=e[12];m[4]=e[1];m[5]=e[5];m[6]=e[9];m[7]=e[13];m[8]=e[2];m[9]=e[6];m[10]=e[10];m[11]=e[14];
+  }
+}
+function occCast(ox,oy,oz,dx,dy,dz){   // 返回最近的本体命中距离，无命中 -1；起点在包围盒内（如雷达被移进部件里）则忽略该盒
+  let best=1e9;
+  for(let i=0,n=OCC.length;i<n;i++){
+    const b=OCC[i];if(!b.on)continue;const m=b.m;
+    const px=m[0]*ox+m[1]*oy+m[2]*oz+m[3]-b.cx,py=m[4]*ox+m[5]*oy+m[6]*oz+m[7]-b.cy,pz=m[8]*ox+m[9]*oy+m[10]*oz+m[11]-b.cz;
+    const qx=m[0]*dx+m[1]*dy+m[2]*dz,qy=m[4]*dx+m[5]*dy+m[6]*dz,qz=m[8]*dx+m[9]*dy+m[10]*dz;
+    let t0=-1e9,t1=1e9,a,e,q;
+    if(qx>1e-9||qx<-1e-9){a=(-b.hx-px)/qx;e=(b.hx-px)/qx;if(a>e){q=a;a=e;e=q}if(a>t0)t0=a;if(e<t1)t1=e}else if(px<-b.hx||px>b.hx)continue;
+    if(t0>t1||t1<=MINR||t0>=best)continue;
+    if(qy>1e-9||qy<-1e-9){a=(-b.hy-py)/qy;e=(b.hy-py)/qy;if(a>e){q=a;a=e;e=q}if(a>t0)t0=a;if(e<t1)t1=e}else if(py<-b.hy||py>b.hy)continue;
+    if(t0>t1||t1<=MINR||t0>=best)continue;
+    if(qz>1e-9||qz<-1e-9){a=(-b.hz-pz)/qz;e=(b.hz-pz)/qz;if(a>e){q=a;a=e;e=q}if(a>t0)t0=a;if(e<t1)t1=e}else if(pz<-b.hz||pz>b.hz)continue;
+    if(t0<=t1&&t0>MINR&&t0<best)best=t0;
+  }
+  return best<1e9?best:-1;
+}
 function radarStep(dt){
   const on=rchk.checked;cloud.visible=fov.visible=on;rdc.style.display=on?'block':'none';
   if(!on)return;
+  occUpdate();
   lidar.getWorldPosition(ro);const me=lidar.matrixWorld.elements;   // 射线方向用雷达自身姿态
   const n=Math.min(10000,Math.max(1,Math.round(PPS*dt))),w0=wI;
   for(let i=0;i<n;i++){
     kSeq++;   // 低差异序列近似非重复扫描花瓣
     const az=((kSeq*PHI1)%1)*TP,el=ELMIN+((kSeq*PHI2)%1)*(ELMAX-ELMIN);
     const ce=Math.cos(el),lx=ce*Math.cos(az),ly=Math.sin(el),lz=-ce*Math.sin(az),dx=me[0]*lx+me[4]*ly+me[8]*lz,dy=me[1]*lx+me[5]*ly+me[9]*lz,dz=me[2]*lx+me[6]*ly+me[10]*lz;
-    const t=cast(ro.x,ro.y,ro.z,dx,dy,dz);if(t<0)continue;
+    let t=cast(ro.x,ro.y,ro.z,dx,dy,dz);const tb=occCast(ro.x,ro.y,ro.z,dx,dy,dz);if(tb>0&&(t<0||tb<t))t=tb;   // 本体挡在前面则命中本体
+    if(t<0)continue;
     const x=ro.x+dx*t,y=ro.y+dy*t,z=ro.z+dz*t,o=(wI++%NP)*3;
     pPos[o]=x;pPos[o+1]=y;pPos[o+2]=z;
     const hb=(Math.max(0,Math.min(1,y/20))*64|0)*3;pCol[o]=HLUT[hb];pCol[o+1]=HLUT[hb+1];pCol[o+2]=HLUT[hb+2];
