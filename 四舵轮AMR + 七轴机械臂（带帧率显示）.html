@@ -75,7 +75,7 @@ button.lk.on{background:#dc2626;border-color:#dc2626;color:#fff}
   <div style="font-size:11px;opacity:.7;margin-top:2px">360°×59°（−7°~52°）· 20 万点/s · 10 Hz · 0.1–40 m</div>
   <label style="margin-top:6px"><input type="checkbox" id="dco" checked>3D 相机 RGB-D：迈尔微视 M4 Pro（立柱随 J1 转，自带自转）</label>
   <div id="csel" class="g" style="grid-template-columns:repeat(3,1fr);margin:6px 0 4px"><button data-cam="U" style="font-size:12px;padding:5px 2px">上相机<br>可升降</button><button data-cam="M" class="on" style="font-size:12px;padding:5px 2px">中相机<br>正视前方</button><button data-cam="L" style="font-size:12px;padding:5px 2px">下相机<br>下俯 20°</button></div>
-  <label style="margin-bottom:4px;font-size:12px"><span style="width:84px">上相机升降</span><input id="liftS" type="range" min="0" max="36" step="1" value="0"><b id="liftV" style="width:48px;text-align:right;font-weight:500">0 cm</b></label>
+  <label style="margin-bottom:4px;font-size:12px"><span style="width:84px">上相机升降</span><input id="liftS" type="range" min="0" max="48" step="1" value="0"><b id="liftV" style="width:48px;text-align:right;font-weight:500">0 cm</b></label>
   <div style="font-size:11px;opacity:.7;margin-top:2px">iToF 深度 81°×61° · RGB 88°×56° · 0.3–5 m · 精度 ±4 mm+0.25%·depth · 12 fps</div>
 </div>
 <div id="dcw"><div class="dv"><canvas id="dcr" width="128" height="72"></canvas><span id="dcrl">RGB 1920×1080 · 88°×56°</span></div><div class="dv"><canvas id="dcc" width="128" height="96"></canvas><span id="dccl">深度 640×480 · 81°×61°</span><div id="dlg"></div></div></div>
@@ -265,13 +265,13 @@ function makeCam(y,x,tiltDown){   // 相机局部系：y 前、z 右、-x 上；
   [-.17,.17].forEach(z=>cyl(.038,.038,.03,M(0x7f1d1d,.3,.4,{emissive:0xb91c1c,emissiveIntensity:.6}),.0,.115,z,g)); // VCSEL 发射窗口
   return g;
 }
-const yM=PH+.3,yU0=yM+.75,LIFT_MAX=1.8;   // 中相机高度；上相机最低位；升降行程（局部单位 1.8 = 36 cm；保证最高处仍低于车厢顶）
+const yM=PH+.3,yU0=yM+.75,LIFT_MAX=2.4;   // 中相机高度；上相机最低位；升降行程（局部单位 2.4 = 48 cm；20GP 车厢内高 2.39 m，最高处相机和导轨仍低于车厢顶）
 const yMid=yM-.5,yLow=yM-2.25;   // 中相机比原位置下移 10 cm；下相机比原位置下移 10 cm（局部单位 0.5 = 10 cm）
 const camM=makeCam(yMid,0,0);                                          // 中：正视前方（俯仰 0°）
 const camL=makeCam(yLow,.32,20);                                        // 下：固定，下俯 20°
 box(.34,.14,.3,dark,.14,yLow,0,mastG);                              // 下相机支架（从立柱伸出）
 const camU=makeCam(yU0,0,0);                                           // 上：可升降，正视前方
-const RAIL_L=4.0,RAIL_Y0=yU0-RAIL_L/2+.7;   // 升降导轨：长 0.8 m（局部 4.0），上端高出上相机 0.7 局部单位，下端向下延伸
+const RAIL_L=4.0,RAIL_Y0=yU0-RAIL_L/2+.4;   // 升降导轨：长 0.8 m（局部 4.0），上端高出上相机 0.4 局部单位（升到最高时不顶车厢），下端向下延伸
 const liftRail=cyl(.06,.06,RAIL_L,alu,-.34,RAIL_Y0,0,mastG);   // 升降导轨（在相机后方，不挡视线），随上相机一起升降
 const liftCar=box(.3,.5,.34,dark,-.22,yU0,0,mastG);                  // 滑台（连接导轨与上相机）
 let camAct=camM,liftC=0;   // 当前用于 RGB-D 仿真的相机；升降当前位置（局部单位）
