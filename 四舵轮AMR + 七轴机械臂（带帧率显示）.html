@@ -1390,8 +1390,8 @@ function carryFront(q0,P){   // 前吸携带：抽出 → 边转边收（半径�
   const at=f=>{   // 极坐标 (ψ, r, y)：前 35% 收拢半径、前 20% 抬到 yc；转动期间保持高位；最后 30% 一边伸出到落点半径一边下降，J1 已经转到位，不会翻到“后仰”那一支
     const ps=psi0+sweep*f,t=Math.max(0,(f-.7)/.3);
     const r=(Rm+(R0-Rm)*Math.max(0,1-f/.35))*(1-sm(t))+Rend*sm(t),y=(yc+(cy-yc)*Math.max(0,1-f/.2))*(1-sm(t))+yEnd*sm(t);
-    return{tip:[S.x+r*Math.cos(ps),y,S.z-r*Math.sin(ps)],psi:ps}};
-  const wps=[{tip:[xr,cy,apInfo.c.z],psi:psi0}];
+    return{tip:[S.x+r*Math.cos(ps),y,S.z-r*Math.sin(ps)],psi:ps-psi0*(1-Math.min(1,f/.35))}};   // 吸盘轴朝向：开头保持正对货面（+x）直线抽出，前 35% 内逐渐转成径向朝外——避免第一步手腕突然滚转 100°+
+  const wps=[{tip:[xr,cy,apInfo.c.z],psi:0}];
   for(const f of[.08,.2,.35,.5,.65,.78,.88,.95])wps.push(at(f));
   wps.push({tip:[fx,yEnd,fz],psi:dir*Math.PI});
   const path=[];let qp=q0,failed=false;
