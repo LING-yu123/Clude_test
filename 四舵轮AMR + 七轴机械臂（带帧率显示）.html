@@ -1165,6 +1165,7 @@ function planPlace(){   // 把箱子放到车尾输送线起点上方：吸盘�
 }
 // ======== 搬运路径：抽出后先把箱子抬到车体上方，绕 J1 转向车尾（箱子始终水平，吸盘轴沿径向朝外并逐渐转到正后方），再落到输送线上 ========
 function poseYaw(psi){const c=Math.cos(psi),s=Math.sin(psi);TX=[0,-1,0];TY=[c,0,-s];TZ=[s,0,c]}   // 吸盘轴水平指向 ψ（0=+x，向左转为正），底托朝下
+const NEARW=[.5,.6,3,.6,1,1,1];   // 相邻航点选解的关节代价权重：J3（肘）尽量少动，让 J2（肩）和 J4（前臂）配合完成抬高/收拢
 function unwrapQ(q,qp){   // 把 J1/J5/J7 的角度展开到与上一航点连续（在 ±180° 附近，wrapD 会让同一姿态跳到另一侧，样条就会绕远路反转）
   for(const i of[0,4,6]){let v=q[i];while(v-qp[i]>180)v-=360;while(v-qp[i]<-180)v+=360;if(v>=JN[i][1]-.5&&v<=JN[i][2]+.5)q[i]=v}
   return q;
@@ -1175,7 +1176,7 @@ function nearSolve(tip,slide,qp,dirJ1){   // 在“与上一个航点相近”�
     const q=anaSolve(tip,slide,th3p+d,sg,flip);if(!q)continue;
     const f=fkPose(q,slide),dv=poseDev(q,slide);if(Math.hypot(f.p[0]-tip[0],f.p[1]-tip[1],f.p[2]-tip[2])>.3||dv.ax>3||dv.roll>8)continue;
     unwrapQ(q,qp);
-    let cost=0;for(let i=0;i<7;i++)cost+=Math.abs(q[i]-qp[i])*(i===0?.5:1);
+    let cost=0;for(let i=0;i<7;i++)cost+=Math.abs(q[i]-qp[i])*NEARW[i];
     if(dirJ1&&dirJ1*(q[0]-qp[0])<-2)cost+=200+5*Math.abs(q[0]-qp[0]);   // J1 反向：重罚
     if(!best||cost<best.cost)best={q,cost};
   }
@@ -1280,11 +1281,15 @@ function carryFront(q0,P){   // 前吸携带：抽出 → 边转边收（半径�
   const E=ENV[envK],S=new THREE.Vector3();j2.getWorldPosition(S);
   const xr=apInfo.xf-6,dz0=apInfo.c.z-S.z,psi0=Math.atan2(-dz0,xr-S.x),R0=Math.hypot(xr-S.x,dz0);   // 抽出位相对肩部的极坐标（方位角 ψ0、半径 R0）
   const yc=P.yc,Rm=Math.min(P.Rm,R0),dir=P.dir,cy=apInfo.c.y,sweep=dir*Math.PI-psi0;   // 转角：从 ψ0 到正后方（±π），J1 只朝一个方向转
-  const at=f=>{const ps=psi0+sweep*f,r=Rm+(R0-Rm)*Math.max(0,1-f/.35),y=yc+(cy-yc)*Math.max(0,1-f/.2);return{tip:[S.x+r*Math.cos(ps),y,S.z-r*Math.sin(ps)],psi:ps}};
-  const c=robot.localToWorld(new THREE.Vector3(REAR_X-3.6,BELT_TOP+E.hy+.3,0)),fx=c.x+2.925,fz=S.z-dir*.3;   // 终点略偏向转向一侧：腕心方位角落在 ±180° 的同一侧
+  const cP=robot.localToWorld(new THREE.Vector3(REAR_X-3.6,BELT_TOP+E.hy+.3,0)),fx=cP.x+2.925,fz=S.z-dir*.3,Rend=Math.max(1,S.x-fx),yEnd=cP.y;   // 落点：车尾输送线起点（终点略偏向转向一侧：腕心方位角落在 ±180° 的同一侧）
+  const sm=t=>t*t*(3-2*t);
+  const at=f=>{   // 极坐标 (ψ, r, y)：前 35% 收拢半径、前 20% 抬到 yc；转动期间保持高位；最后 30% 一边伸出到落点半径一边下降，J1 已经转到位，不会翻到“后仰”那一支
+    const ps=psi0+sweep*f,t=Math.max(0,(f-.7)/.3);
+    const r=(Rm+(R0-Rm)*Math.max(0,1-f/.35))*(1-sm(t))+Rend*sm(t),y=(yc+(cy-yc)*Math.max(0,1-f/.2))*(1-sm(t))+yEnd*sm(t);
+    return{tip:[S.x+r*Math.cos(ps),y,S.z-r*Math.sin(ps)],psi:ps}};
   const wps=[{tip:[xr,cy,apInfo.c.z],psi:psi0}];
-  for(const f of[.08,.2,.35,.5,.65,.8,.92,.97])wps.push(at(f));
-  wps.push({tip:[fx,yc,fz],psi:dir*Math.PI},{tip:[fx,c.y,fz],psi:dir*Math.PI});
+  for(const f of[.08,.2,.35,.5,.65,.78,.88,.95])wps.push(at(f));
+  wps.push({tip:[fx,yEnd,fz],psi:dir*Math.PI});
   const path=[];let qp=q0,failed=false;
   wps.forEach((w,k)=>{if(failed)return;poseYaw(w.psi);const r=nearSolve(w.tip,100,qp,k>=1?dir:0);if(!r){failed=true;return}path.push(r.q);qp=r.q});
   setAxes(false);return failed?null:path;
@@ -1296,18 +1301,21 @@ function planCarryBest(pl,quick){   // 搜索无碰撞的携带路径：转向�
   const rel=heldRel(pl.q2,100,c);
   const roomL=11.75+S.z,roomR=11.75-S.z,psi0=Math.atan2(-(c.z-S.z),(mode==='front'?apInfo.xf-6:c.x)-S.x);   // 向 -z（左）转时到左壁的距离 / 向 +z（右）转时到右壁的距离；psi0：抽出位方位角
   const pref=Math.abs(psi0)>.07?(psi0>0?1:-1):(roomL>=roomR?1:-1);   // J1 顺着抽出位所在的一侧转，路程最短、不反向
-  let dirs=[pref,-pref];if(quick)dirs=[pref];
-  const vars=[];
-  if(mode==='front'){const Rc=(apInfo.xf-6)-S.x;for(const Rm of quick?[99,8,6.5,6]:[99,9,8,7,6.5,6])for(const yc of quick?[S.y+3]:[S.y+3,S.y+6])if(!(Rm<99&&Rm>=Rc))vars.push({Rm,yc})}
-  else for(const Rc of quick?[8,6.5]:[8,7,6])for(const yh of quick?[S.y+3]:[S.y+3,S.y+5])vars.push({Rc,yh});
+  let dirs=[pref,-pref];if(quick||!AVOID)dirs=[pref];   // 只有开了避障才允许“反方向绕远路转”；默认永远顺着抽出位所在的一侧转，J1 不反向
+  const vars=[],roofY=E.room?E.room[3]:99;   // 车顶内侧高度
+  if(mode==='front'){   // 前吸：箱子挂在吸盘前方，箱心与吸盘同高 → 箱顶不能超过车顶
+    const Rc=(apInfo.xf-6)-S.x,hi=Math.min(roofY-E.hy-.5,Math.max(c.y,S.y+9)),ycs=[...new Set([hi,hi-2.5,hi-5,hi-8].filter(v=>v>=S.y+4).map(v=>Math.round(v*10)/10))];
+    for(const yc of ycs)for(const Rm of quick?[6.5,99]:[6.5,8,99])if(!(Rm<99&&Rm>=Rc))vars.push({Rm,yc})}
+  else{   // 顶吸：箱子挂在吸盘下方，腕心在吸盘上方 4.1 → 吸盘面不能高过车顶下方 5.2
+    const hiT=Math.min(roofY-5.2,Math.max(S.y+8,c.y+E.hy+.8)),ycs=[...new Set([hiT,S.y+5].map(v=>Math.round(v*10)/10))];
+    for(const yh of ycs)for(const Rc of quick?[8,6.5]:[8,7,6])vars.push({Rc,yh})}
   let best=null;
   for(const dir of dirs)for(const v of vars){
     RMIN_WC=(mode==='front'&&v.Rm<7)?1.5:3;
     const path=mode==='front'?carryFront(pl.q3,{dir,Rm:v.Rm,yc:v.yc}):planCarryTop(pl.q3,{dir,Rc:v.Rc,yh:v.yh});
     RMIN_WC=3;
     if(!path)continue;
-    if(!AVOID)return{path,bad:0};
-    const bad=cfgsBad(splineCfgs([pl.q3,...path],pl.q2,5),rel,stRed,hs,stSkip,false);
+    const bad=cfgsBad(splineCfgs([pl.q3,...path],pl.q2,quick?5:6),rel,stRed,hs,stSkip,false);
     if(bad===0)return{path,bad:0,dir};
     if(!best||bad<best.bad)best={path,bad,dir};
   }
