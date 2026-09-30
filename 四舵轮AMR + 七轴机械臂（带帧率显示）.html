@@ -928,7 +928,7 @@ document.getElementById('lkNone').onclick=()=>{SKEY.forEach(k=>lockB[k]=false);s
 const NRM=[[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]],held={obj:null},freeBoxes=[],ZM=new THREE.Matrix4().makeScale(0,0,0);
 const gv={c:new THREE.Vector3(),tp:new THREE.Vector3(),d:new THREE.Vector3(),cw:cups.map(()=>new THREE.Vector3()),col:new THREE.Color()};
 let apS=0,apT=0,apInfo=null,apMsg='';
-let ldS=0,ldT=0,ldInfo=null,ldMsg='',ldRet=null,ldN=0,LOADM=false;   // 装车仿真：状态机、当前槽位信息、已装箱数；LOADM=输送线反向（向车厢送）
+let ldS=0,ldT=0,ldInfo=null,ldMsg='',ldRet=null,ldAtEnd=false,ldN=0,LOADM=false;   // 装车仿真：状态机、当前槽位信息、已装箱数；LOADM=输送线反向（向车厢送）
 function mkBox(hy,color){const g=new THREE.BoxGeometry(5.85,hy*2,3.8),m=new THREE.Mesh(g,new THREE.MeshStandardMaterial({color,roughness:.85}));
   m.add(new THREE.LineSegments(new THREE.EdgesGeometry(g),new THREE.LineBasicMaterial({color:0x3a2a18})));m.userData.hy=hy;scene.add(m);return m}
 function dropBox(m){scene.remove(m);m.traverse(o=>{if(o.geometry)o.geometry.dispose();if(o.material)o.material.dispose()})}   // 移除箱子并释放 GPU 资源（每个箱子各有几何体和材质）
@@ -1007,7 +1007,7 @@ function releaseHeld(){
 function resetCargo(){
   for(const k of ['gp','hq']){const E=ENV[k];if(!E.im)continue;E.im.instanceMatrix.array.set(E.orig);E.im.instanceMatrix.needsUpdate=true;E.exist.fill(true);E.cyc.set(E.cartons.map(c=>c[1]));E.vy.fill(0);E.rebuild()}
   if(held.obj){dropBox(held.obj.mesh);held.obj=null}
-  freeBoxes.forEach(b=>dropBox(b.mesh));freeBoxes.length=0;apS=0;apMsg='';apReturn=null;ldS=0;ldMsg='';ldRet=null;ldN=0;LOADM=false;
+  freeBoxes.forEach(b=>dropBox(b.mesh));freeBoxes.length=0;apS=0;apMsg='';apReturn=null;ldS=0;ldMsg='';ldRet=null;ldAtEnd=false;ldN=0;LOADM=false;
 }
 const M4=new THREE.Matrix4();
 function stackStep(dt){
@@ -1030,7 +1030,8 @@ function graspStep(dt){
     if(still.length<3){releaseHeld();info='吸嘴真空撤除，箱子掉落'}
   }else{
     let best=null;const cands=[];
-    if(E.cartons)for(let i=0;i<E.cartons.length;i++){if(!E.exist[i]||E.vy[i]!==0||!(exposedC(E,i)||topExp(E,i)))continue;const c=cargoC(E,i,new THREE.Vector3());if(c.distanceTo(gv.tp)<10)cands.push({kind:'stack',idx:i,c,hs:[2.925,E.hy,1.9]})}
+    if(E.cartons&&!LOADM)for(let i=0;i<E.cartons.length;i++){   // 装车模式（!LOADM）：车厢里已码好的箱子不能再被吸走
+      if(!E.exist[i]||E.vy[i]!==0||!(exposedC(E,i)||topExp(E,i)))continue;const c=cargoC(E,i,new THREE.Vector3());if(c.distanceTo(gv.tp)<10)cands.push({kind:'stack',idx:i,c,hs:[2.925,E.hy,1.9]})}
     freeBoxes.forEach((b,i)=>{if((b.state==='rest'||b.state==='lstop')&&b.pos.distanceTo(gv.tp)<10)cands.push({kind:'free',idx:i,c:b.pos.clone(),hs:b.hs})});
     for(const cd of cands){const ev=evalFace(cd.c,cd.hs,d,gv.tp);if(ev&&(!best||ev.seal.length>best.ev.seal.length))best={cd,ev}}
     const anyOn=zt.some(v=>v>.5);
@@ -1604,6 +1605,22 @@ function pickCfgs(pl,cr){   // 车尾输送线止挡处的抓取位（吸盘贴�
   }
   RMIN_WC=3;setAxes(false);return out;
 }
+function ldTry(cd,force){   // 在当前车位规划：放置位 → 搬运路径 → 车尾取箱位；够得着返回 {pl,cr,pc,front}，否则 null
+  apInfo={c:cd.c,xf:cd.c.x-2.925,cd,force,tries:0};
+  const dh=Math.hypot(apInfo.xf-(pos.x+1.6*Math.cos(yaw)),cd.c.z-(pos.z-1.6*Math.sin(yaw)));
+  if(!(dh>=Math.max(4,MIN_D)&&dh<=21))return null;
+  const pl=planPick();if(!pl)return null;
+  const cr=planCarryBest(pl,false);if(!cr||!cr.path)return null;
+  const pl2=cr.pl2||pl,pc=pickCfgs(pl2,cr);if(!pc)return null;
+  return{pl:pl2,cr,pc,front:apInfo.pm==='front'};
+}
+function ldApproach(pc,from,carryEnd){   // 去取箱位的关节航点：从上一箱的搬运路径末端出发，直接一条轨迹贴到箱面（不再先停在“接近位”）；换侧时先收拢转身；不是从搬运路径出来的（首次）才需要接近位
+  const fold=j=>{const q=PRE['收纳'].slice(0,7);q[0]=j;return q},out=[];
+  if(Math.abs(pc.qg[0]-from[0])>150)out.push(fold(from[0]),fold(pc.qg[0]));   // 车尾取箱位在左右两侧（J1 各转到 ±160° 左右）：换侧时先在车尾把臂收拢，原地转过去再展开，不让展开的臂扫过车厢
+  else if(!carryEnd)out.push(pc.qh);
+  out.push(pc.qg);return out;
+}
+function ldSetTz(pc){for(const b of freeBoxes)if(b.state==='ld1'||b.state==='lstop')b.tz=pc.tipG[2]-robot.position.z}   // 把车尾输送线上的箱子提前导向到取箱位的横向位置
 function loadStep(dt){
   if(!ldS)return;ldT+=dt;const E=ENV[envK],say=m=>{ldMsg=m;ldT=0},conv=()=>{let m=0;for(let i=0;i<7;i++)m=Math.max(m,Math.abs(qc[i]-qt[i]));return m<1.5&&Math.abs(qsc-qs)<3};
   const fail=m=>{ldMsg=m;ldS=0;cmd=[0,0,0]};
@@ -1618,31 +1635,24 @@ function loadStep(dt){
     if(Math.abs(dx)<.08&&Math.abs(dz)<.08){cmd=[0,0,0];ldS=3;say('规划…')}
     else{const f=v=>Math.sign(v)*Math.max(.15,Math.min(1,Math.abs(v)/6));cmd=[Math.abs(dx)<.08?0:f(dx),Math.abs(dz)<.08?0:-f(dz),0]}
   }else if(ldS===3){
-    const cd=ldInfo.cd;apInfo={c:cd.c,xf:cd.c.x-2.925,cd,force:ldInfo.force,tries:0};
-    const dh=Math.hypot(apInfo.xf-(pos.x+1.6*Math.cos(yaw)),cd.c.z-(pos.z-1.6*Math.sin(yaw)));let pl=null,cr=null,pc=null;
-    if(dh>=Math.max(4,MIN_D)&&dh<=21){pl=planPick();if(pl){cr=planCarryBest(pl,false);if(cr&&cr.pl2)pl=cr.pl2;if(cr&&cr.path)pc=pickCfgs(pl,cr)}}
-    if(!pl||!cr||!cr.path||!pc){
+    const cd=ldInfo.cd;let r=ldTry(cd,ldInfo.force);
+    if(!r){
       let pk=findParking(cd,ldInfo.force);
       if(!pk&&ldInfo.force==='top'){pk=findParking(cd,'front');if(pk)ldInfo.force='front'}
       if(pk&&ldInfo.tries<3){ldInfo.tries++;ldInfo.park=pk;ldS=2;say(`调整车位（前后 ${((pk.x-pos.x)*10).toFixed(0)} cm，左右 ${((pk.z-pos.z)*10).toFixed(0)} cm）…`);return}
       fail(`第 ${cd.sl+1} 面第 ${cd.l+1} 层第 ${cd.j+1} 列机械臂放不进去，已停止`);return;
     }
-    Object.assign(ldInfo,{pl,cr,pc,front:apInfo.pm==='front'});
-    if(ldInfo.front){qs=0;sls.value=0}else{qs=100;sls.value=100}
-    {const fold=j=>{const q=PRE['收纳'].slice(0,7);q[0]=j;return q},lst=[...(ldRet||[])];
-      if(Math.abs(pc.qh[0]-qc[0])>150){qs=0;sls.value=0;lst.push(fold(qc[0]),fold(pc.qh[0]))}   // 车尾取箱位在左右两侧（J1 各转到 ±160° 左右）：换侧时先在车尾把臂收拢，原地转过去再展开，不让展开的臂扫过车厢
-      lst.push(pc.qh);setVia(lst);ldRet=null}
-    ldS=4;say('去车尾输送线止挡处取箱…');
-  }else if(ldS===4){   // 等机械臂到接近位、箱子到止挡处并对准
-    const bxs=freeBoxes.find(b=>b.state==='lstop');
-    if(bxs){bxs.tz=ldInfo.pc.tipG[2]-robot.position.z;
-      if(conv()&&ldT>.1&&Math.abs(bxs.loc.z-bxs.tz)<.08){if(!ldInfo.front){qs=100;sls.value=100}SKEY_ZONES(1);setJ(ldInfo.pc.qg);ldS=5;say('吸盘贴近箱面，开启真空…')}}
-    else if(ldT>.5)ldMsg='等待输送线送来箱子…';
-  }else if(ldS===5){
+    Object.assign(ldInfo,r);
+    const carryEnd=ldAtEnd,from=qc.slice(0,7),ap=ldApproach(r.pc,from,carryEnd);ldAtEnd=false;
+    if(ap.length>1&&Math.abs(r.pc.qg[0]-from[0])>150){qs=0;sls.value=0}else if(r.front){qs=0;sls.value=0}else{qs=100;sls.value=100}
+    ldSetTz(r.pc);SKEY_ZONES(1);setVia(ap);ldS=5;say('去车尾输送线取箱…');
+  }else if(ldS===5){   // 机械臂一次到位贴箱；箱子到止挡并对准后才会被吸住（吸嘴一直开着，接触即吸）
+    if(!ldInfo.front&&qs<100&&Math.abs(ldInfo.pc.qg[0]-qc[0])<25){qs=100;sls.value=100}   // 换侧收拢转身时吸盘板是缩回的；转到位后再伸出
     if(conv()&&ldT>.1){ldS=6;say('等待吸附…')}
   }else if(ldS===6){
     if(held.obj){const {pl,cr}=ldInfo;setVia([...cr.path].reverse().concat([pl.q3]));ldS=7;say('抽离输送线，沿路径转向车厢内部…')}
-    else if(ldT>1.5){if(++ldInfo.fails>=3){fail('取箱失败（未吸附）');return}SKEY_ZONES(0);setJ(ldInfo.pc.qh);ldS=4;say('重试取箱…')}
+    else if(ldT>2.5){if(!freeBoxes.some(b=>b.state==='lstop')){ldT=0;ldMsg='等待输送线送来箱子…';return}
+      if(++ldInfo.fails>=3){fail('取箱失败（未吸附）');return}ldSetTz(ldInfo.pc);setJ(ldInfo.pc.qh);setVia([ldInfo.pc.qh,ldInfo.pc.qg]);ldS=5;say('重试取箱…')}
   }else if(ldS===7){
     if(conv()&&ldT>.1){if(ldInfo.front){qs=100;sls.value=100}ldS=8;say(ldInfo.front?'吸盘板前伸，把箱子送向空位…':'下探到空位…')}
   }else if(ldS===8){
@@ -1653,7 +1663,14 @@ function loadStep(dt){
       placeSlot(E,ldInfo.cd);SKEY_ZONES(0);ldN++;ldS=10;say('已码放，退回…')}
   }else if(ldS===10){
     if(ldT>.25){const {pl,cr}=ldInfo;if(ldInfo.front){qs=0;sls.value=0}
-      setVia([pl.q1,...cr.path]);ldS=11}   // 空手沿原路退回车尾
+      const retreat=[pl.q1,...cr.path],nxt=document.getElementById('ldloop').checked?nextSlot(E):null;
+      if(nxt){   // 先在当前车位试着规划下一箱：够得着就把“退回车尾 → 贴箱”并成一条连续轨迹（中途不停）
+        const force=nxt.l<5?'top':'front',r=ldTry(nxt,force);
+        if(r){const ap=ldApproach(r.pc,cr.path[cr.path.length-1],true);
+          ldInfo={cd:nxt,tries:0,fails:0,force,...r};
+          if(r.front||Math.abs(r.pc.qg[0]-cr.path[cr.path.length-1][0])>150){qs=0;sls.value=0}else{qs=100;sls.value=100}
+          ldSetTz(r.pc);SKEY_ZONES(1);setVia([...retreat,...ap]);ldS=5;say(`直接取下一箱（第 ${nxt.sl+1} 面第 ${nxt.l+1} 层第 ${nxt.j+1} 列）…`);return}}
+      setVia(retreat);ldAtEnd=true;ldS=11}   // 下一箱要换车位（或不连续装）：先退回车尾
   }else if(ldS===11){
     if(conv()&&ldT>.1){
       if(document.getElementById('ldloop').checked)ldS=1;
