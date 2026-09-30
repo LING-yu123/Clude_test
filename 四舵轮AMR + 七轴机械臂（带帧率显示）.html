@@ -1507,7 +1507,7 @@ addEventListener('resize',resize);resize();
   let z=20,saved={};const KEY='amr.panelPos';   // 面板位置记在浏览器里，刷新后保留（存储不可用时静默忽略）
   try{saved=JSON.parse(localStorage.getItem(KEY)||'{}')||{}}catch(err){saved={}}
   const store=()=>{try{const o={};panels.forEach(el=>{if(el.style.right==='auto')o[el.id]={l:el.offsetLeft,t:el.offsetTop,w:el.offsetWidth}});localStorage.setItem(KEY,JSON.stringify(o))}catch(err){/* 忽略 */}};
-  const clampP=el=>{const w=el.offsetWidth,h=el.offsetHeight;el.style.left=Math.min(Math.max(0,innerWidth-w),Math.max(0,el.offsetLeft))+'px';el.style.top=Math.min(Math.max(0,innerHeight-40),Math.max(0,el.offsetTop))+'px'};   // 面板比窗口高时只保证标题栏可见
+  const clampP=el=>{const w=el.offsetWidth;el.style.left=Math.min(Math.max(0,innerWidth-w),Math.max(0,el.offsetLeft))+'px';el.style.top=Math.min(Math.max(0,innerHeight-40),Math.max(0,el.offsetTop))+'px'};   // 面板比窗口高时只保证标题栏可见
   panels.forEach(el=>{
     const sv=saved[el.id];if(sv&&isFinite(sv.l)&&isFinite(sv.t)&&isFinite(sv.w)){el.style.boxSizing='border-box';el.style.width=sv.w+'px';el.style.maxWidth='none';el.style.right='auto';el.style.bottom='auto';el.style.left=sv.l+'px';el.style.top=sv.t+'px';clampP(el)}
     el.style.cursor='move';el.style.touchAction='none';
