@@ -100,7 +100,8 @@ button.lk.on{background:#dc2626;border-color:#dc2626;color:#fff}
   <div style="margin-top:8px;font-size:12px"><b>吸盘抓取</b></div>
   <div id="gst" style="font-size:12px;opacity:.85;min-height:34px;white-space:pre-line"></div>
   <div class="g" style="grid-template-columns:1fr 1fr;margin-top:4px"><button id="apk">自动抓取一箱</button><button id="rst">重置货物</button></div>
-  <label style="margin-top:4px;font-size:12px"><input type="checkbox" id="aploop" checked>连续卸货（先最外面一面、再从上往下，直到卸完）</label></details></div>
+  <label style="margin-top:4px;font-size:12px"><input type="checkbox" id="aploop" checked>连续卸货（先最外面一面、再从上往下，直到卸完）</label>
+  <label style="margin-top:4px;font-size:12px"><input type="checkbox" id="avoidCk">避障规划（实验：每箱规划要多花几秒；搬运路径仍可能擦到侧壁/车顶）</label></details></div>
 <script src="three.min.js"></script>
 <script>
 const canvas=document.getElementById('c');
@@ -1449,6 +1450,7 @@ function autoStep(dt){
   }
 }
 function SKEY_ZONES(v){for(let i=0;i<NC;i++)setZ(i,v)}
+document.getElementById('avoidCk').onchange=e=>{AVOID=e.target.checked};   // 避障规划开关（默认关）
 document.getElementById('apk').onclick=()=>{if(apS){apS=0;cmd=[0,0,0];apReturn=null;apMsg='已中止'}else{apS=1;apT=0;apMsg='开始…'}};
 document.getElementById('rst').onclick=()=>{resetCargo()};
 // ======== 车尾伸缩输送线 ========
