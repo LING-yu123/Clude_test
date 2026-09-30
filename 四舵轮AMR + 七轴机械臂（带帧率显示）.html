@@ -729,6 +729,8 @@ function shade(x,y,z,dx,dy,dz){
     nx=hAx===0?hSg:0;ny=hAx===1?hSg:0;nz=hAx===2?hSg:0;
     if(hAx===1&&hSg>0){const f=.86+.14*hash2(Math.floor((z+11.75)/2.9),3);r=154*f;g=116*f;b=72*f}
     else{const col=env==='gp'?[181,64,42]:[45,91,134],f=.88+.12*Math.sin((hAx===0?z:x)*2.067),m=hAx===1?1.15:1;r=col[0]*f*m;g=col[1]*f*m;b=col[2]*f*m}
+  }else if(hK===6){   // 机器人本体：白色外壳，法向近似朝向相机
+    nx=-dx;ny=-dy;nz=-dz;r=226;g=230;b=234;
   }else if(hK===5){
     nx=hAx===0?hSg:0;ny=hAx===1?hSg:0;nz=hAx===2?hSg:0;
     if(hAx===1&&hSg>0&&y<fy+.5){const f=.86+.14*hash2(Math.floor((z+11.75)/2.9),3);r=154*f;g=116*f;b=72*f}   // 地板
@@ -753,13 +755,15 @@ function camStep(dt){
   if(!on)return;
   camAcc+=dt;if(camAcc<1/12)return;camAcc=0;   // 12 fps
   camAct.updateMatrixWorld(true);const e=camAct.matrixWorld.elements;camAct.getWorldPosition(cco);
+  occUpdate();occBegin(cco.x,cco.y,cco.z);   // 本体遮挡：立柱转向前方时，机械臂、车体会挡住相机视线
   // 深度图 + 彩色点云（深度点着 RGB 色）
   const dd=dimg.data;
   for(let k=0;k<DW*DH;k++){
     const rx=dRay.r[k*3],ry=dRay.r[k*3+1],rz=dRay.r[k*3+2];
     let dx=e[0]*rx+e[4]*ry+e[8]*rz,dy=e[1]*rx+e[5]*ry+e[9]*rz,dz=e[2]*rx+e[6]*ry+e[10]*rz;
     const L=Math.hypot(dx,dy,dz);dx/=L;dy/=L;dz/=L;
-    const t=cast(cco.x,cco.y,cco.z,dx,dy,dz),o=k*4;let ok=false,z=0;
+    let t=cast(cco.x,cco.y,cco.z,dx,dy,dz);const o=k*4;let ok=false,z=0;
+    {const tb=occCast(dx,dy,dz);if(tb===-2){t=MINR;hK=6}else if(tb>0&&(t<0||tb<t)){t=tb;hK=6}}
     if(t>0){z=t/dRay.n[k];const zm=z/10;z+=gs()*2*(.002+.00125*zm)*10;ok=z>=ZMIN&&z<=ZMAX}   // σ 取精度指标 ±(4 mm+0.25%·depth) 的一半
     if(ok){
       shade(cco.x+dx*t,cco.y+dy*t,cco.z+dz*t,dx,dy,dz);
@@ -774,7 +778,8 @@ function camStep(dt){
     const rx=cRay.r[k*3],ry=cRay.r[k*3+1],rz=cRay.r[k*3+2];
     let dx=e[0]*rx+e[4]*ry+e[8]*rz,dy=e[1]*rx+e[5]*ry+e[9]*rz,dz=e[2]*rx+e[6]*ry+e[10]*rz;
     const L=Math.hypot(dx,dy,dz);dx/=L;dy/=L;dz/=L;
-    const t=cast(cco.x,cco.y,cco.z,dx,dy,dz),o=k*4;
+    let t=cast(cco.x,cco.y,cco.z,dx,dy,dz);const o=k*4;
+    {const tb=occCast(dx,dy,dz);if(tb===-2){t=MINR;hK=6}else if(tb>0&&(t<0||tb<t)){t=tb;hK=6}}
     if(t>0){shade(cco.x+dx*t,cco.y+dy*t,cco.z+dz*t,dx,dy,dz);const n=(Math.random()-.5)*6;rd[o]=RGBo[0]+n;rd[o+1]=RGBo[1]+n;rd[o+2]=RGBo[2]+n}
     else{rd[o]=28;rd[o+1]=36;rd[o+2]=48}
     rd[o+3]=255;
