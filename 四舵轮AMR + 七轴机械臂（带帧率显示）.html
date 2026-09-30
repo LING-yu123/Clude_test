@@ -103,7 +103,7 @@ button.lk.on{background:#dc2626;border-color:#dc2626;color:#fff}
 <script src="three.min.js"></script>
 <script>
 const canvas=document.getElementById('c');
-const setT=(el,s)=>{if(el._t!==s){el._t=s;el.textContent=s}};   // 文本没变就不写 DOM，避免每帧触发重排
+const setT=(el,s)=>{if(el._t===s)return;const n=performance.now();if(n-(el._w||0)<100)return;el._w=n;el._t=s;el.textContent=s};   // 文本没变不写；变化也最多 10 Hz 写一次，避免每帧触发重排
 
 const renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:true});
 renderer.setPixelRatio(Math.min(devicePixelRatio,1.25));
@@ -301,7 +301,7 @@ JN.forEach((j,i)=>{
   const inp=l.querySelector('input');sl.push(inp);lb.push(l.querySelector('b'));
   inp.oninput=()=>{traj.active=false;qt[i]=+inp.value;demo=false;db.classList.remove('on')};
 });
-const liftSEl=document.getElementById('liftS'),liftVEl=document.getElementById('liftV'),rkAEl=document.getElementById('rkA'),rkSEl=document.getElementById('rkS'),rkVEl=document.getElementById('rkV');
+const lkvEl=document.getElementById('lkv'),liftSEl=document.getElementById('liftS'),liftVEl=document.getElementById('liftV'),rkAEl=document.getElementById('rkA'),rkSEl=document.getElementById('rkS'),rkVEl=document.getElementById('rkV');
 liftSEl.max=Math.round(LIFT_MAX*20);   // 升降滑块上限与升降行程常量保持一致（1 局部单位 = 20 cm 的一半 → ×20 = cm）
 let qs=0,qsc=0;
 const sLab=document.createElement('label');
@@ -393,7 +393,7 @@ const DEMO=['准备','前伸','吸取','举高','侧向','准备','收纳'],tv=n
 
 // —— 雷达仿真：Livox Mid-360（360°×59°，-7°~52°，20 万点/s，10 Hz，0.1~40 m；1 单位 = 10 cm） ——
 const PPS=200000,ELMIN=-7*Math.PI/180,ELMAX=52*Math.PI/180,MINR=1,MAXR=400,NP=600000,TP=Math.PI*2;
-const bx=[],cy2=[],dynB=[],wl=[];let room=null,envK='gp';   // bx 货垛/障碍；dynB 落地/输送/吸附中的箱子（每帧刷新）；wl 集装箱壳体（雷达/相机从箱外看时才参与）
+const bx=[],cy2=[],dynB=[],dynG=[],wl=[];let room=null,envK='gp';   // bx 货垛/障碍；dynB 落地/输送/吸附中的箱子（每帧刷新）；wl 集装箱壳体（雷达/相机从箱外看时才参与）
 const envG={open:new THREE.Group(),gp:new THREE.Group(),hq:new THREE.Group()};
 Object.values(envG).forEach(g=>scene.add(g));
 const ENV={open:{bx:[],cy:[],wl:[],room:null,bumps:[]},gp:{bx:[],cy:[],wl:[],room:null,bumps:[]},hq:{bx:[],cy:[],wl:[],room:null,bumps:[]}};
@@ -553,16 +553,35 @@ function cast(ox,oy,oz,dx,dy,dz){   // 无内存分配、轴向展开的射线�
     if(!(ax===0&&dx<0)&&tt>MINR&&tt<best){best=tt;hK=4;hAx=ax;hSg=(ax===0?dx:ax===1?dy:dz)>0?-1:1}   // 门端敞开：射线从门口出去不命中
   }
   if(dy<0){t=-oy/dy;if(t>MINR&&t<best){best=t;hK=1;hAx=1;hSg=1}}
-  const nb=bx.length,nd=dynB.length,n=nb+nd+(inRoom?0:wl.length);
+  const nb=bx.length,n=nb+(inRoom?0:wl.length);
   for(let bi=0;bi<n;bi++){
-    const b=bi<nb?bx[bi]:bi<nb+nd?dynB[bi-nb]:wl[bi-nb-nd],cx=b[0],cy=b[1],cz=b[2],hx=b[3],hy=b[4],hz=b[5];
+    const b=bi<nb?bx[bi]:wl[bi-nb],cx=b[0],cy=b[1],cz=b[2],hx=b[3],hy=b[4],hz=b[5];
     let t0=-1e9,t1=1e9,ka=0,sg=1;
     if(dx>1e-9||dx<-1e-9){a=(cx-hx-ox)/dx;e=(cx+hx-ox)/dx;if(a>e){q=a;a=e;e=q}if(a>t0){t0=a;ka=0;sg=dx>0?-1:1}if(e<t1)t1=e}else if(ox<cx-hx||ox>cx+hx)continue;
     if(t0>t1||t1<=MINR||t0>=best)continue;
     if(dy>1e-9||dy<-1e-9){a=(cy-hy-oy)/dy;e=(cy+hy-oy)/dy;if(a>e){q=a;a=e;e=q}if(a>t0){t0=a;ka=1;sg=dy>0?-1:1}if(e<t1)t1=e}else if(oy<cy-hy||oy>cy+hy)continue;
     if(t0>t1||t1<=MINR||t0>=best)continue;
     if(dz>1e-9||dz<-1e-9){a=(cz-hz-oz)/dz;e=(cz+hz-oz)/dz;if(a>e){q=a;a=e;e=q}if(a>t0){t0=a;ka=2;sg=dz>0?-1:1}if(e<t1)t1=e}else if(oz<cz-hz||oz>cz+hz)continue;
-    if(t0<=t1&&t0>MINR&&t0<best){best=t0;hK=bi<nb+nd?2:5;hI=bi;hAx=ka;hSg=sg}
+    if(t0<=t1&&t0>MINR&&t0<best){best=t0;hK=bi<nb?2:5;hI=bi;hAx=ka;hSg=sg}
+  }
+  for(let gi=0,ng=dynG.length;gi<ng;gi++){   // 落地/输送线上/吸着的箱子：先测分组包围盒，没擦到就整组跳过（卸货后期箱子很多）
+    const g=dynG[gi];let g0=0,g1=1e9;
+    if(dx>1e-9||dx<-1e-9){a=(g.lx-ox)/dx;e=(g.hx-ox)/dx;if(a>e){q=a;a=e;e=q}if(a>g0)g0=a;if(e<g1)g1=e}else if(ox<g.lx||ox>g.hx)continue;
+    if(g0>g1||g1<=MINR||g0>=best)continue;
+    if(dy>1e-9||dy<-1e-9){a=(g.ly-oy)/dy;e=(g.hy-oy)/dy;if(a>e){q=a;a=e;e=q}if(a>g0)g0=a;if(e<g1)g1=e}else if(oy<g.ly||oy>g.hy)continue;
+    if(g0>g1||g1<=MINR||g0>=best)continue;
+    if(dz>1e-9||dz<-1e-9){a=(g.lz-oz)/dz;e=(g.hz-oz)/dz;if(a>e){q=a;a=e;e=q}if(a>g0)g0=a;if(e<g1)g1=e}else if(oz<g.lz||oz>g.hz)continue;
+    if(g0>g1||g1<=MINR||g0>=best)continue;
+    for(let bi=g.a;bi<g.b;bi++){
+      const b=dynB[bi],cx=b[0],cy=b[1],cz=b[2],hx=b[3],hy=b[4],hz=b[5];
+      let t0=-1e9,t1=1e9,ka=0,sg=1;
+      if(dx>1e-9||dx<-1e-9){a=(cx-hx-ox)/dx;e=(cx+hx-ox)/dx;if(a>e){q=a;a=e;e=q}if(a>t0){t0=a;ka=0;sg=dx>0?-1:1}if(e<t1)t1=e}else if(ox<cx-hx||ox>cx+hx)continue;
+      if(t0>t1||t1<=MINR||t0>=best)continue;
+      if(dy>1e-9||dy<-1e-9){a=(cy-hy-oy)/dy;e=(cy+hy-oy)/dy;if(a>e){q=a;a=e;e=q}if(a>t0){t0=a;ka=1;sg=dy>0?-1:1}if(e<t1)t1=e}else if(oy<cy-hy||oy>cy+hy)continue;
+      if(t0>t1||t1<=MINR||t0>=best)continue;
+      if(dz>1e-9||dz<-1e-9){a=(cz-hz-oz)/dz;e=(cz+hz-oz)/dz;if(a>e){q=a;a=e;e=q}if(a>t0){t0=a;ka=2;sg=dz>0?-1:1}if(e<t1)t1=e}else if(oz<cz-hz||oz>cz+hz)continue;
+      if(t0<=t1&&t0>MINR&&t0<best){best=t0;hK=2;hI=bi;hAx=ka;hSg=sg}
+    }
   }
   for(let ci=0,n=cy2.length;ci<n;ci++){
     const c=cy2[ci],px=ox-c[0],pz=oz-c[1],aa=dx*dx+dz*dz;if(aa<1e-9)continue;
@@ -614,13 +633,18 @@ occ(mastG,0,PH/2,0,.3,PH,.3);occ(camU,0,0,0,.4,.205,.475);occ(camM,0,0,0,.4,.205
 occ(liftCar,0,0,0,.3,.5,.34);occ(liftRail,0,0,0,.12,RAIL_L,.12);occ(grpA,5.7,3.9,0,.6,1.4,9.8);occ(grpA,-5.7,3.9,0,.6,1.4,9.8);occ(grpB,5.7,4.4,0,.6,1.4,9.8);occ(grpB,-5.7,4.4,0,.6,1.4,9.8);   // 前后防撞条
 for(const M of[modsA,modsB])for(const k in M){occ(M[k].steer,0,.75,0,1.5,1.5,.9);occ(M[k].steer,0,.6,0,.9,1.2,.8)}   // 四个舵轮（车轮 + 转向叉），随转向和悬挂运动
 
-const _dp=[];   // dynB 元素复用，避免每帧分配
-function dynUpdate(){   // 把落地/在输送线上的箱子（轴对齐）和吸盘吸着的箱子（取外接轴对齐盒）交给射线求交
+const _dp=[],_dg=[];   // dynB / dynG 元素复用，避免每帧分配
+function dynUpdate(){   // 把落地/在输送线上的箱子（轴对齐）和吸盘吸着的箱子（取外接轴对齐盒）交给射线求交；按 x 排序后每 8 个一组，带组包围盒
   let k=0;const put=(x,y,z,a,b,c)=>{const e=_dp[k]||(_dp[k]=[0,0,0,0,0,0]);e[0]=x;e[1]=y;e[2]=z;e[3]=a;e[4]=b;e[5]=c;dynB[k++]=e};
   for(const b of freeBoxes)put(b.pos.x,b.pos.y,b.pos.z,b.hs[0],b.hs[1],b.hs[2]);
   if(held.obj){const m=held.obj.mesh.matrix.elements,hy=held.obj.mesh.userData.hy,A=Math.abs;
     put(m[12],m[13],m[14],A(m[0])*2.925+A(m[4])*hy+A(m[8])*1.9,A(m[1])*2.925+A(m[5])*hy+A(m[9])*1.9,A(m[2])*2.925+A(m[6])*hy+A(m[10])*1.9)}
-  dynB.length=k;
+  dynB.length=k;dynB.sort((p,q)=>p[0]-q[0]);
+  let ng=0;for(let a=0;a<k;a+=8){const b=Math.min(k,a+8),g=_dg[ng]||(_dg[ng]={a:0,b:0,lx:0,ly:0,lz:0,hx:0,hy:0,hz:0});
+    g.a=a;g.b=b;g.lx=g.ly=g.lz=1e9;g.hx=g.hy=g.hz=-1e9;
+    for(let i=a;i<b;i++){const e=dynB[i];g.lx=Math.min(g.lx,e[0]-e[3]);g.hx=Math.max(g.hx,e[0]+e[3]);g.ly=Math.min(g.ly,e[1]-e[4]);g.hy=Math.max(g.hy,e[1]+e[4]);g.lz=Math.min(g.lz,e[2]-e[5]);g.hz=Math.max(g.hz,e[2]+e[5])}
+    dynG[ng++]=g}
+  dynG.length=ng;
 }
 function occUpdate(){
   for(const b of OCC){
@@ -665,7 +689,8 @@ function radarStep(dt){
     kSeq++;   // 低差异序列近似非重复扫描花瓣
     const az=((kSeq*PHI1)%1)*TP,el=ELMIN+((kSeq*PHI2)%1)*(ELMAX-ELMIN);
     const ce=Math.cos(el),lx=ce*Math.cos(az),ly=Math.sin(el),lz=-ce*Math.sin(az),dx=me[0]*lx+me[4]*ly+me[8]*lz,dy=me[1]*lx+me[5]*ly+me[9]*lz,dz=me[2]*lx+me[6]*ly+me[10]*lz;
-    let t=cast(ro.x,ro.y,ro.z,dx,dy,dz);const tb=occCast(dx,dy,dz);if(tb===-2)continue;if(tb>0&&(t<0||tb<t))t=tb;   // 本体挡在前面则命中本体
+    const tb=occCast(dx,dy,dz);if(tb===-2)continue;   // 被紧贴的本体挡住：不必再算环境
+    let t=cast(ro.x,ro.y,ro.z,dx,dy,dz);if(tb>0&&(t<0||tb<t))t=tb;   // 本体挡在前面则命中本体
     if(t<0)continue;
     const x=ro.x+dx*t,y=ro.y+dy*t,z=ro.z+dz*t,o=(wI++%NP)*3;
     pPos[o]=x;pPos[o+1]=y;pPos[o+2]=z;
@@ -839,7 +864,7 @@ function updatePose(dt){
     const rt=yh,rb=yl+.35,len=Math.max(.05,rt-rb);m.rod.scale.y=len;m.rod.position.y=rt-len/2;
     m.lockG.visible=lockB[k];
   });
-  const lv=document.getElementById('lkv');if(lv&&chK==='B')setT(lv,SKEY.map((k,i)=>({FL:'左前',FR:'右前',RL:'左后',RR:'右后'}[k])+' '+(dyS[i]*10>=0?'+':'')+(dyS[i]*10).toFixed(1)+' cm'+(lockB[k]?'（锁）':'')).join('　'));
+  if(chK==='B')setT(lkvEl,SKEY.map((k,i)=>({FL:'左前',FR:'右前',RL:'左后',RR:'右后'}[k])+' '+(dyS[i]*10>=0?'+':'')+(dyS[i]*10).toFixed(1)+' cm'+(lockB[k]?'（锁）':'')).join('　'));
 }
 function setChassis(t){
   chK=t;grpA.visible=t==='A';grpB.visible=t==='B';mods=t==='A'?modsA:modsB;
@@ -860,6 +885,7 @@ const gv={c:new THREE.Vector3(),tp:new THREE.Vector3(),d:new THREE.Vector3(),cw:
 let apS=0,apT=0,apInfo=null,apMsg='';
 function mkBox(hy,color){const g=new THREE.BoxGeometry(5.85,hy*2,3.8),m=new THREE.Mesh(g,new THREE.MeshStandardMaterial({color,roughness:.85}));
   m.add(new THREE.LineSegments(new THREE.EdgesGeometry(g),new THREE.LineBasicMaterial({color:0x3a2a18})));m.userData.hy=hy;scene.add(m);return m}
+function dropBox(m){scene.remove(m);m.traverse(o=>{if(o.geometry)o.geometry.dispose();if(o.material)o.material.dispose()})}   // 移除箱子并释放 GPU 资源（每个箱子各有几何体和材质）
 function cargoC(E,i,out){const c=E.cartons[i];return out.set(c[0],E.cyc[i]+E.cg.position.y,c[2])}
 function topExp(E,i){return i%6<5&&!E.exist[i+1]}   // 顶面暴露（其上一层已取走）：可顶吸
 function exposedC(E,i){   // 靠门一侧（前方）没有箱子挡着 → 暴露，可从正面吸取
@@ -902,8 +928,8 @@ function releaseHeld(){
 }
 function resetCargo(){
   for(const k of ['gp','hq']){const E=ENV[k];if(!E.im)continue;E.im.instanceMatrix.array.set(E.orig);E.im.instanceMatrix.needsUpdate=true;E.exist.fill(true);E.cyc.set(E.cartons.map(c=>c[1]));E.vy.fill(0);E.rebuild()}
-  if(held.obj){scene.remove(held.obj.mesh);held.obj=null}
-  freeBoxes.forEach(b=>scene.remove(b.mesh));freeBoxes.length=0;apS=0;apMsg='';apReturn=null;
+  if(held.obj){dropBox(held.obj.mesh);held.obj=null}
+  freeBoxes.forEach(b=>dropBox(b.mesh));freeBoxes.length=0;apS=0;apMsg='';apReturn=null;
 }
 const M4=new THREE.Matrix4();
 function stackStep(dt){
@@ -953,11 +979,17 @@ function graspStep(dt){
   for(const b of freeBoxes){
     if(b.state==='conv1'){   // 车尾输送线：向后送，到末端落到月台输送线上
       b.loc.x-=BELT_V*dt;b.pos.copy(robot.localToWorld(new THREE.Vector3(b.loc.x,BELT_TOP+b.hs[1],b.loc.z)));
-      if(b.loc.x<=REAR_X-convL+.4){b.state='fall';b.vy=0;b.vx=-BELT_V*.7}
+      if(b.loc.x<=REAR_X-convL+.4){
+        if(envK!=='open'&&b.pos.x<DOCK_START+1.2&&b.pos.x>DOCK_END-1){b.state='conv2';b.pos.y=BELT_TOP+b.hs[1]}   // 车尾输送线末端伸在月台输送线上方：直接交接（车横移时两条线不对中，由 conv2 段横向导正）
+        else{b.state='fall';b.vy=0;b.vx=-BELT_V*.7}}
       continue}
     if(b.state==='conv2'||b.state==='stop'){   // 月台输送线：向外送，末端依次排队
       let minX=DOCK_END+b.hs[0];for(const o of freeBoxes)if(o!==b&&(o.state==='conv2'||o.state==='stop')&&o.pos.x<b.pos.x-.01)minX=Math.max(minX,o.pos.x+o.hs[0]+b.hs[0]+.15);
-      b.pos.x=Math.max(Math.min(b.pos.x,minX),b.pos.x-BELT_V*dt);b.pos.y=BELT_TOP+b.hs[1];b.state=b.pos.x<=minX+.02?'stop':'conv2';continue}   // 与前一个箱子太近时原地等待，不后退
+      b.pos.x=Math.max(Math.min(b.pos.x,minX),b.pos.x-BELT_V*dt);b.pos.y=BELT_TOP+b.hs[1];
+      {const dz=DOCKZ-b.pos.z;b.pos.z+=Math.sign(dz)*Math.min(Math.abs(dz),6*dt)}   // 月台线两侧有导向板：把偏在一侧的箱子推回皮带中线
+     b.state=b.pos.x<=minX+.02?'stop':'conv2';
+      if(b.state==='stop'){b.tw=(b.tw||0)+dt;if(b.tw>4)b.gone=true}else b.tw=0;   // 在月台输送线末端停满 4 s 视为被取走，避免箱子越堆越多、雷达/相机求交越来越慢
+      continue}   // 与前一个箱子太近时原地等待，不后退
     const fl=landY(b);
     if(b.state==='rest'){if(b.pos.y>fl+.05){b.state='fall';b.vy=0}continue}
     b.vy-=98*dt;b.pos.y+=b.vy*dt;if(b.vx){b.pos.x+=b.vx*dt;b.vx*=Math.max(0,1-3*dt)}
@@ -966,6 +998,7 @@ function graspStep(dt){
       b.vy=0;b.vx=0;const sf=surf(b);
       if(sf&&Math.abs(fl2-(sf.y+b.hs[1]))<.02){b.state=sf.type===1?'conv1':'conv2';if(sf.type===1){const v=robot.worldToLocal(b.pos.clone());b.loc={x:v.x,z:v.z}}}
       else b.state='rest'}}}
+  for(let i=freeBoxes.length-1;i>=0;i--)if(freeBoxes[i].gone){dropBox(freeBoxes[i].mesh);freeBoxes.splice(i,1)}
   const left=E.exist?E.exist.filter(v=>v).length:0,gst=document.getElementById('gst');if(gst)setT(gst,(apS&&apMsg?apMsg+'\n':'')+(E.exist?`货物剩余 ${left} 箱 · `:'')+info);
 }
 // ======== 逆运动学（阻尼最小二乘，数值雅可比）：让吸盘面中心到达目标点，吸盘轴朝 +x（正对货面），底托在下 ========
@@ -1215,7 +1248,7 @@ const crail=[-1,1].map(sg=>{const m=new THREE.Mesh(new THREE.BoxGeometry(1,.7,.3
 const cend=new THREE.Mesh(new THREE.CylinderGeometry(.35,.35,BELT_W+.6,16),M(0x9aa3ad,.7,.4));cend.rotation.x=Math.PI/2;convG.add(cend);
 const clegs=[0,1,2].map(()=>{const l=new THREE.Mesh(new THREE.CylinderGeometry(.18,.18,1,10),M(0x2a3038,.5,.5)),w=new THREE.Mesh(new THREE.CylinderGeometry(.35,.35,.4,12),rubber);w.rotation.x=Math.PI/2;convG.add(l,w);return{l,w}});
 function convStep(dt){
-  const tgt=envK==='open'?6:Math.max(3,Math.min(46,(pos.x-6)+9));convL+=(tgt-convL)*Math.min(1,dt*3);const L=convL;   // 末端伸到月台输送线上方
+  const tgt=envK==='open'?6:Math.max(3,Math.min(60,(pos.x-6)+9));convL+=(tgt-convL)*Math.min(1,dt*3);const L=convL;   // 末端伸到月台输送线上方
   cbelt.scale.x=L;cbelt.position.x=-L/2;crail.forEach(r=>{r.scale.x=L;r.position.x=-L/2});cend.position.set(-L,BELT_TOP-.25,0);
   bTexR.repeat.set(L/2.5,1);bTexR.offset.x=(bTexR.offset.x+BELT_V*dt/2.5)%1;bTexD.offset.x=(bTexD.offset.x+BELT_V*dt/2.5)%1;
   clegs.forEach((g,i)=>{const x=i===2?L-.5:L*(.42+.26*i);g.l.visible=g.w.visible=L>8||i===2;
@@ -1341,6 +1374,14 @@ setEnv('gp');setChassis('B');
   const f=new THREE.Vector3(Math.cos(yaw),0,-Math.sin(yaw)),l=new THREE.Vector3(-Math.sin(yaw),0,-Math.cos(yaw));
   pos.addScaledVector(f,vx*dt).addScaledVector(l,vy*dt);yaw+=w*dt;
   if(envK==='open'){pos.x=Math.max(-54,Math.min(54,pos.x));pos.z=Math.max(-54,Math.min(54,pos.z))}
+  else{   // 集装箱场景：车体外形（前后 ±6.0 含防撞条、左右 ±5.05 含侧灯带）不能穿过箱壁 / 门柱 / 货面 / 后壁
+    const ca=Math.abs(Math.cos(yaw)),sa=Math.abs(Math.sin(yaw)),ex=ca*6.0+sa*5.05,ez=sa*6.0+ca*5.05,zl=11.75-.1-ez;
+    if(pos.x+ex>0&&zl>=0)pos.z=Math.max(-zl,Math.min(zl,pos.z));   // 车体进入门洞以后，左右受箱壁限制（正对时 ±6.6，与自动抓取的车位搜索范围一致）
+    const E=ENV[envK];let fx=1e9;
+    if(E.exist)for(let i=0;i<E.cartons.length;i++)if(E.exist[i]&&E.cartons[i][0]<fx)fx=E.cartons[i][0];
+    fx=fx<1e9?fx-2.925:58.98;                          // 最外一排货物的外表面，或无货时的后壁
+    pos.x=Math.min(pos.x,fx-.3-ex);
+  }
   updatePose(dt);
   pos.y=zy;robot.position.copy(pos);robot.rotation.order='YZX';robot.rotation.set(zr,yaw,zp);
 
