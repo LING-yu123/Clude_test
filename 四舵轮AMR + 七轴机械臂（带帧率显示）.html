@@ -12,7 +12,7 @@ html,body{height:100%;margin:0}
 body{background:var(--bg);color:var(--fg);font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;overflow:hidden}
 #c{display:block;width:100%;height:100%;touch-action:none;cursor:grab}
 #ui{position:absolute;left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom,0px));max-width:380px;background:var(--panel);backdrop-filter:blur(8px);border-radius:12px;padding:10px 12px;font-size:13px}
-#top{position:absolute;left:12px;top:calc(12px + env(safe-area-inset-top,0px));background:var(--panel);backdrop-filter:blur(8px);border-radius:10px;padding:8px 12px;font-size:13px;line-height:1.6}
+#top{position:absolute;left:12px;top:calc(12px + env(safe-area-inset-top,0px));max-width:360px;background:var(--panel);backdrop-filter:blur(8px);border-radius:10px;padding:8px 12px;font-size:13px;line-height:1.6}
 #top b{font-size:15px}
 .g{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:8px}
 button{font:inherit;padding:7px 2px;border:1px solid #8a97a655;border-radius:8px;background:transparent;color:var(--fg);cursor:pointer}
@@ -36,14 +36,14 @@ input[type=range]{flex:1;accent-color:var(--accent)}
 .lg{opacity:.6;font-size:11px;margin-top:6px}
 #rd{position:absolute;right:12px;bottom:12px;width:320px;height:240px;border:1px solid #22e5d066;border-radius:6px;pointer-events:none;display:block}
 #rd span{position:absolute;left:8px;top:6px;font-size:11px;color:#7dfff0}
-#dcw{position:absolute;right:340px;bottom:12px;display:flex;gap:4px;align-items:flex-end;pointer-events:none}
+#dcw{position:absolute;right:340px;bottom:12px;display:flex;gap:4px;align-items:flex-end;pointer-events:auto}
 #dcw .dv{position:relative;background:#04120d;border:1px solid #fbbf2466;border-radius:6px;overflow:hidden}
 #dcw canvas{display:block;image-rendering:pixelated}
 #dcr{width:200px;height:113px}#dcc{width:151px;height:113px}
 #dcw span{position:absolute;left:5px;top:3px;font-size:9px;color:#fde68a;text-shadow:0 0 3px #000}
 #dlg{height:5px}
 #ui,#arm,#sg,#lp{max-height:calc(100vh - 24px);overflow-y:auto}   /* 面板比窗口高时可滚动，避免底部控件被截掉 */
-#lp{position:absolute;left:404px;bottom:calc(12px + env(safe-area-inset-bottom,0px));width:236px;background:var(--panel);backdrop-filter:blur(8px);border-radius:12px;padding:8px 12px;font-size:12px}
+#lp{position:absolute;left:428px;bottom:calc(12px + env(safe-area-inset-bottom,0px));width:236px;background:var(--panel);backdrop-filter:blur(8px);border-radius:12px;padding:8px 12px;font-size:12px}
 #lp summary{cursor:pointer;font-size:14px;margin-bottom:4px}
 #lp label{display:flex;align-items:center;gap:6px;margin:3px 0}
 #lp label span{width:64px}#lp label b{width:46px;text-align:right;font-weight:500}
@@ -1587,7 +1587,7 @@ const up=e=>{insetDrag=false;pts.delete(e.pointerId);pd=0;last=[e.clientX,e.clie
 canvas.addEventListener('pointerup',up);canvas.addEventListener('pointercancel',up);
 canvas.addEventListener('wheel',e=>{e.preventDefault();if(inInset(e))cdI=Math.min(300,Math.max(8,cdI*(1+e.deltaY*.001)));else cd*=1+e.deltaY*.001},{passive:false});
 document.getElementById('vov').onclick=()=>{fl.checked=false;if(envK==='open'){ctr.set(0,0,0);cd=140}else{ctr.set(0,4,0);cd=110}cy=.9;cp=.6};
-function resize(){rdc.style.width=IW()+'px';rdc.style.height=IH()+'px';dcw.style.right=(IW()+20)+'px';renderer.setSize(innerWidth,innerHeight,false);camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix()}
+function resize(){rdc.style.width=IW()+'px';rdc.style.height=IH()+'px';if(dcw.style.right!=='auto')dcw.style.right=(IW()+20)+'px';renderer.setSize(innerWidth,innerHeight,false);camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix()}
 addEventListener('resize',resize);resize();
 
 // —— 雷达位姿控制：三台雷达各自独立。位置（cm，相对车体中心）+ 姿态（度，欧拉角 偏航 Y → 俯仰 Z → 横滚 X） ——
@@ -1609,13 +1609,15 @@ addEventListener('resize',resize);resize();
 })();
 // —— 界面小面板拖拽：在面板的空白处（标题、文字、背景）按住拖动；按钮/滑块/勾选框照常操作 ——
 (function(){
-  const panels=['top','ui','arm','sg','lp'].map(id=>document.getElementById(id)).filter(Boolean);
+  const panels=['top','ui','arm','sg','lp','dcw'].map(id=>document.getElementById(id)).filter(Boolean);
   let z=20,saved={};const KEY='amr.panelPos';   // 面板位置记在浏览器里，刷新后保留（存储不可用时静默忽略）
   try{saved=JSON.parse(localStorage.getItem(KEY)||'{}')||{}}catch(err){saved={}}
   const store=()=>{try{const o={};panels.forEach(el=>{if(el.style.right==='auto')o[el.id]={l:el.offsetLeft,t:el.offsetTop,w:el.offsetWidth}});localStorage.setItem(KEY,JSON.stringify(o))}catch(err){/* 忽略 */}};
-  const clampP=el=>{const w=el.offsetWidth;el.style.left=Math.min(Math.max(0,innerWidth-w),Math.max(0,el.offsetLeft))+'px';el.style.top=Math.min(Math.max(0,innerHeight-40),Math.max(0,el.offsetTop))+'px'};   // 面板比窗口高时只保证标题栏可见
+  const clampP=el=>{const w=el.offsetWidth;el.style.left=Math.min(Math.max(0,innerWidth-w),Math.max(0,el.offsetLeft))+'px';el.style.top=Math.min(Math.max(0,innerHeight-40),Math.max(0,el.offsetTop))+'px';fit(el)};   // 面板比窗口高时只保证标题栏可见
+  const fit=el=>{if(el.style.right==='auto'&&el.id!=='dcw')el.style.maxHeight=Math.max(120,innerHeight-el.offsetTop-8)+'px'};   // 拖到下方后，面板最大高度随位置收缩，内部滚动才够得着底部控件
   panels.forEach(el=>{
     const sv=saved[el.id];if(sv&&isFinite(sv.l)&&isFinite(sv.t)&&isFinite(sv.w)){el.style.boxSizing='border-box';el.style.width=sv.w+'px';el.style.maxWidth='none';el.style.right='auto';el.style.bottom='auto';el.style.left=sv.l+'px';el.style.top=sv.t+'px';clampP(el)}
+    el.addEventListener('toggle',()=>fit(el),true);
     el.style.cursor='move';el.style.touchAction='none';
     el.addEventListener('pointerdown',e=>{   // 移动超过 4 px 才算拖拽，否则仍是普通点击（如标题折叠）
       if(e.button!==0||e.target.closest('input,button,select,textarea,a'))return;
@@ -1623,11 +1625,11 @@ addEventListener('resize',resize);resize();
       const mv=ev=>{
         if(!on){if(Math.hypot(ev.clientX-sx,ev.clientY-sy)<4)return;on=true;
           el.style.boxSizing='border-box';el.style.width=r.width+'px';el.style.maxWidth='none';   // border-box：否则 width 不含内边距，面板拖一次就宽 24 px
-          el.style.right='auto';el.style.bottom='auto';el.style.zIndex=++z;
+          el.style.right='auto';el.style.bottom='auto';el.style.zIndex=++z;el.style.userSelect='none';
           try{el.setPointerCapture(e.pointerId)}catch(err){/* 指针已释放，忽略 */}}
-        el.style.left=Math.min(Math.max(0,innerWidth-r.width),Math.max(0,ev.clientX-ox))+'px';el.style.top=Math.min(Math.max(0,innerHeight-40),Math.max(0,ev.clientY-oy))+'px'};
+        el.style.left=Math.min(Math.max(0,innerWidth-r.width),Math.max(0,ev.clientX-ox))+'px';el.style.top=Math.min(Math.max(0,innerHeight-40),Math.max(0,ev.clientY-oy))+'px';fit(el)};
       const up=()=>{el.removeEventListener('pointermove',mv);el.removeEventListener('pointerup',up);el.removeEventListener('pointercancel',up);
-        if(on){el.addEventListener('click',ev=>ev.preventDefault(),{capture:true,once:true});store()}};
+        el.style.userSelect='';if(on){el.addEventListener('click',ev=>ev.preventDefault(),{capture:true,once:true});fit(el);store()}};
       el.addEventListener('pointermove',mv);el.addEventListener('pointerup',up);el.addEventListener('pointercancel',up);
     });
   });
