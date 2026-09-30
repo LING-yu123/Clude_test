@@ -619,7 +619,7 @@ function cast(ox,oy,oz,dx,dy,dz){   // 无内存分配、轴向展开的射线�
   return best<MAXR?best:-1;
 }
 // 点云环形缓冲（3 台雷达合计约 1 s 余辉），按高度着色
-const pPos=new Float32Array(NP*3).fill(-1000),pCol=new Float32Array(NP*3);
+const pPos=new Float32Array(NP*3).fill(-1000),pCol=new Float32Array(NP*3),pOwn=new Uint8Array(NP);   // pOwn：每个点属于哪台雷达（关闭某台雷达时清掉它的点）
 const pGeo=new THREE.BufferGeometry();
 pGeo.setAttribute('position',new THREE.BufferAttribute(pPos,3));pGeo.setAttribute('color',new THREE.BufferAttribute(pCol,3));
 const cloud=new THREE.Points(pGeo,new THREE.PointsMaterial({size:.16,vertexColors:true}));cloud.frustumCulled=false;scene.add(cloud);
@@ -715,7 +715,7 @@ function radarStep(dt){
   if(!on)return;
   occUpdate();
   const n=Math.min(10000,Math.max(1,Math.round(PPS*dt))),w0=wI;
-  for(const ld of LIDARS){if(!ld.userData.on)continue;
+  for(let lk=0;lk<LIDARS.length;lk++){const ld=LIDARS[lk];if(!ld.userData.on)continue;
   ld.getWorldPosition(ro);occBegin(ro.x,ro.y,ro.z);const me=ld.matrixWorld.elements;   // 射线方向用各雷达自身姿态
   for(let i=0;i<n;i++){
     kSeq++;   // 低差异序列近似非重复扫描花瓣
@@ -725,7 +725,7 @@ function radarStep(dt){
     let t=cast(ro.x,ro.y,ro.z,dx,dy,dz);if(tb>0&&(t<0||tb<t))t=tb;   // 本体挡在前面则命中本体
     if(t<0)continue;
     const x=ro.x+dx*t,y=ro.y+dy*t,z=ro.z+dz*t,o=(wI++%NP)*3;
-    pPos[o]=x;pPos[o+1]=y;pPos[o+2]=z;
+    pPos[o]=x;pPos[o+1]=y;pPos[o+2]=z;pOwn[o/3]=lk;
     const hb=(Math.max(0,Math.min(1,y/20))*64|0)*3;pCol[o]=HLUT[hb];pCol[o+1]=HLUT[hb+1];pCol[o+2]=HLUT[hb+2];
   }
   }
@@ -1601,7 +1601,8 @@ addEventListener('resize',resize);resize();
   defs.forEach((d,i)=>{const l=document.createElement('label');l.innerHTML=`<span>${d[0]}</span><input type="range" min="${d[1]}" max="${d[2]}" step="${d[3]}" value="0"><b></b>`;box.appendChild(l);const inp=l.querySelector('input');
     inp.oninput=()=>{vals[cur][i]=+inp.value;lbs[i].textContent=inp.value+d[4];apply(cur)};ins.push(inp);lbs.push(l.querySelector('b'))});
   ['雷达 1','雷达 2','雷达 3'].forEach((n,k)=>{const b=document.createElement('button');b.textContent=n;b.style.cssText='width:auto;flex:1;margin-top:0';b.onclick=()=>{cur=k;show()};tabs.appendChild(b)});
-  en.onchange=()=>{LIDARS[cur].userData.on=en.checked};
+  en.onchange=()=>{const k=cur;LIDARS[k].userData.on=en.checked;if(!en.checked){for(let i=0;i<NP;i++)if(pOwn[i]===k)pPos[i*3]=pPos[i*3+1]=pPos[i*3+2]=-1000;   // 关掉的雷达：已有的点云一并清除
+    const a=pGeo.attributes.position;a.updateRange.offset=0;a.updateRange.count=-1;a.needsUpdate=true}};
   document.getElementById('lpr').onclick=()=>{vals[cur]=DEFS[cur].slice();apply(cur);show()};
   LIDARS.forEach((_,k)=>apply(k));show();
   if(innerWidth<700)document.querySelector('#lp details').removeAttribute('open');
