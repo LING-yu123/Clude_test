@@ -100,6 +100,7 @@ button.lk.on{background:#dc2626;border-color:#dc2626;color:#fff}
   <div id="js"></div><div id="pre"></div><div id="zn"></div><div id="tip" style="margin-top:8px"></div>
   <div style="margin-top:8px;font-size:12px"><b>吸盘抓取</b></div>
   <div id="gst" style="font-size:12px;opacity:.85;min-height:34px;white-space:pre-line"></div>
+  <label style="margin-top:6px;font-size:12px"><span style="width:74px">装卸速度</span><input id="spdS" type="range" min="0.5" max="3" step="0.1" value="1.5"><b id="spdV" style="width:40px;text-align:right;font-weight:500">×1.5</b></label>
   <div class="g" style="grid-template-columns:1fr 1fr;margin-top:4px"><button id="apk">自动抓取一箱</button><button id="rst">重置货物</button></div>
   <label style="margin-top:4px;font-size:12px"><input type="checkbox" id="aploop" checked>连续卸货（先最外面一面、再从上往下，直到卸完）</label>
   <div style="margin-top:8px;font-size:12px"><b>装车仿真</b>（箱子由月台输送线送到车尾，机械臂抓取后在车厢内码垛）</div>
@@ -454,7 +455,8 @@ function corrTex(rep){   // 波纹钢板
   const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(rep,1);return t;
 }
 // ======== 输送线常量与皮带贴图 ========
-const BELT_TOP=7.5,BELT_W=8.4,BELT_V=8,REAR_X=-6,DOCK_START=-8.5,DOCK_END=-34,DOCKZ=0;   // 皮带面高 0.75 m；线速 0.8 m/s
+let SPD=1.5;   // 装卸速度倍率（界面滑块）：机械臂关节速度、吸盘板、真空、流程等待、输送线线速（最多 ×2）、自动挪车、送箱节拍
+const BELT_TOP=7.5,BELT_W=8.4,REAR_X=-6,DOCK_START=-8.5,DOCK_END=-34,DOCKZ=0;let BELT_V=8*Math.min(SPD,2);   // 皮带面高 0.75 m；基础线速 0.8 m/s
 function beltTex(){const c=document.createElement('canvas');c.width=64;c.height=16;const g=c.getContext('2d');g.fillStyle='#1c2229';g.fillRect(0,0,64,16);
   for(let i=0;i<4;i++){g.fillStyle='#39434f';g.fillRect(i*16+1,1,13,14)}g.fillStyle='#f5c400';g.fillRect(0,0,2,16);
   const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;return t}
@@ -1136,14 +1138,14 @@ function poseDev(q,slide,f0){   // 实际姿态偏差（度）：吸盘轴与目
 // ======== 关节轨迹：一整段动作按“最小急动度”速度曲线走，途经的航点用样条平滑连接（不在航点处停顿） ========
 const traj={active:false,pts:[],cum:[],tn:[],L:0,T:1,t:0};
 const jd=(a,b)=>{let m=0;for(let i=0;i<7;i++)m=Math.max(m,Math.abs(a[i]-b[i]));return m};
-function startTraj(list,vmax=80){   // 从当前关节角出发，依次经过 list 中各航点；峰值关节速度 ≈ vmax（°/s）
+function startTraj(list,vmax=80*SPD){   // 从当前关节角出发，依次经过 list 中各航点；峰值关节速度 ≈ vmax（°/s）
   const pts=[qc.slice(0,7)];
   for(const q of list)if(jd(pts[pts.length-1],q)>.5)pts.push(q.slice(0,7));
   const fin=list.length?list[list.length-1]:qc;for(let i=0;i<7;i++)qt[i]=fin[i];
   if(pts.length<2){traj.active=false;return}
   const cum=[0];for(let i=1;i<pts.length;i++)cum.push(cum[i-1]+jd(pts[i-1],pts[i]));
   const n=pts.length,tn=pts.map((p,i)=>{const a=pts[Math.max(0,i-1)],b=pts[Math.min(n-1,i+1)],d=(cum[Math.min(n-1,i+1)]-cum[Math.max(0,i-1)])||1;return p.map((_,k)=>(b[k]-a[k])/d)});
-  const L=cum[n-1];Object.assign(traj,{active:true,pts,cum,tn,L,T:Math.max(.7,1.875*L/vmax),t:0});
+  const L=cum[n-1];Object.assign(traj,{active:true,pts,cum,tn,L,T:Math.max(.7/SPD,1.875*L/vmax),t:0});
 }
 function trajStep(dt){
   if(!traj.active)return false;traj.t+=dt;
@@ -1493,7 +1495,7 @@ function findParking(cd,force){   // 为排在最前面的箱子找一个机械�
   return found;
 }
 function autoStep(dt){
-  if(!apS)return;apT+=dt;const E=ENV[envK],say=m=>{apMsg=m;apT=0},conv=()=>{let m=0;for(let i=0;i<7;i++)m=Math.max(m,Math.abs(qc[i]-qt[i]));return m<1.5&&Math.abs(qsc-qs)<3};
+  if(!apS)return;apT+=dt*SPD;const E=ENV[envK],say=m=>{apMsg=m;apT=0},conv=()=>{let m=0;for(let i=0;i<7;i++)m=Math.max(m,Math.abs(qc[i]-qt[i]));return m<1.5&&Math.abs(qsc-qs)<3};
   const label=()=>{const cd=apInfo.cd,left=E.exist.filter((v,i)=>v&&Math.floor(i/36)===cd.sl&&i%6===cd.l).length;return`最外第 ${E.slices-cd.sl} 面 · 自上而下第 ${6-cd.l} 层（${cd.l<5?'顶吸':'前吸'}；本层还剩 ${left} 箱，第 ${cd.j+1} 列）`};
   if(apS===1){
     if(!E.cartons){apMsg='请先选择标柜/高柜场景';apS=0;return}
@@ -1505,7 +1507,7 @@ function autoStep(dt){
   }else if(apS===2){   // 仅当原地够不着时才移动底盘（前后 + 左右同时调整）
     const dx=apInfo.park.x-pos.x,dz=apInfo.park.z-pos.z;
     if(Math.abs(dx)<.08&&Math.abs(dz)<.08){cmd=[0,0,0];apS=3;say('规划抓取姿态…')}   // 到位精度 8 mm：规划时车位边缘有 2.5 cm 的余量检查，这里必须停准
-    else{const f=v=>Math.sign(v)*Math.max(.15,Math.min(1,Math.abs(v)/6));cmd=[Math.abs(dx)<.08?0:f(dx),Math.abs(dz)<.08?0:-f(dz),0]}   // 左移为正，故右移（z 增大）取负
+    else{const f=v=>Math.sign(v)*Math.max(.15,Math.min(Math.min(2,SPD),Math.abs(v)/6*Math.min(2,SPD)));cmd=[Math.abs(dx)<.08?0:f(dx),Math.abs(dz)<.08?0:-f(dz),0]}   // 左移为正，故右移（z 增大）取负
   }else if(apS===3){
     let pl=null;
     if(apInfo.tries===0&&!apInfo.picked){   // 底盘尽量不动：同一面同一层里先找不用挪车就能拾取的箱子，都够不着才去挪车
@@ -1569,6 +1571,9 @@ function autoStep(dt){
   }
 }
 function SKEY_ZONES(v){for(let i=0;i<NC;i++)setZ(i,v)}
+{const sE=document.getElementById('spdS'),vE=document.getElementById('spdV');const ap=()=>{SPD=+sE.value;BELT_V=8*Math.min(SPD,2);vE.textContent='×'+SPD.toFixed(1);try{localStorage.setItem('amr.spd',sE.value)}catch(err){/* 忽略 */}};
+  try{const v=localStorage.getItem('amr.spd');if(v)sE.value=v}catch(err){/* 忽略 */}
+  sE.oninput=ap;ap()}   // 装卸速度滑块（记在浏览器里）
 document.getElementById('avoidCk').onchange=e=>{AVOID=e.target.checked};   // 避障规划开关（默认关）
 document.getElementById('apk').onclick=()=>{if(apS){apS=0;cmd=[0,0,0];apReturn=null;apMsg='已中止'}else{apS=1;apT=0;apMsg='开始…'}};
 document.getElementById('rst').onclick=()=>{resetCargo()};
@@ -1586,7 +1591,7 @@ function placeSlot(E,cd){const c=E.cartons[cd.i];M4.makeTranslation(c[0],c[1],c[
 let feedT=0;
 function feedStep(dt,E){   // 月台输送线最外端不断送来新箱子（同时在线上最多 4 箱，且不超过车厢里剩余的空位数）
   feedT+=dt;const inLine=freeBoxes.filter(b=>b.state==='ld2'||b.state==='ld1'||b.state==='lstop').length,empty=E.exist.filter(v=>!v).length-(held.obj?1:0);
-  if(inLine>=4||inLine>=empty||feedT<2.2)return;
+  if(inLine>=4||inLine>=empty||feedT<2.2/SPD)return;
   if(freeBoxes.some(b=>b.state==='ld2'&&b.pos.x<DOCK_END+3+2*b.hs[0]+1))return;
   const hue=.09+.02*Math.random(),m=mkBox(E.hy,new THREE.Color().setHSL(hue,.45,.42+.03*Math.random()));
   m.position.set(DOCK_END+3,BELT_TOP+E.hy,DOCKZ);freeBoxes.push({mesh:m,pos:m.position,vy:0,vx:0,vz:0,hs:[2.925,E.hy,1.9],state:'ld2'});feedT=0;
@@ -1631,7 +1636,7 @@ function ldApproach(pc,from,carryEnd){   // 去取箱位的关节航点：从上
 }
 function ldSetTz(pc){for(const b of freeBoxes)if(b.state==='ld1'||b.state==='lstop')b.tz=pc.tipG[2]-robot.position.z}   // 把车尾输送线上的箱子提前导向到取箱位的横向位置
 function loadStep(dt){
-  if(!ldS)return;ldT+=dt;const E=ENV[envK],say=m=>{ldMsg=m;ldT=0},conv=()=>{let m=0;for(let i=0;i<7;i++)m=Math.max(m,Math.abs(qc[i]-qt[i]));return m<1.5&&Math.abs(qsc-qs)<3};
+  if(!ldS)return;ldT+=dt*SPD;const E=ENV[envK],say=m=>{ldMsg=m;ldT=0},conv=()=>{let m=0;for(let i=0;i<7;i++)m=Math.max(m,Math.abs(qc[i]-qt[i]));return m<1.5&&Math.abs(qsc-qs)<3};
   const fail=m=>{ldMsg=m;ldS=0;cmd=[0,0,0]};
   if(!E.cartons){fail('请先选择标柜/高柜场景');return}
   feedStep(dt,E);
@@ -1642,7 +1647,7 @@ function loadStep(dt){
   }else if(ldS===2){   // 底盘到位（前后 + 左右）
     const dx=ldInfo.park.x-pos.x,dz=ldInfo.park.z-pos.z;
     if(Math.abs(dx)<.08&&Math.abs(dz)<.08){cmd=[0,0,0];ldS=3;say('规划…')}
-    else{const f=v=>Math.sign(v)*Math.max(.15,Math.min(1,Math.abs(v)/6));cmd=[Math.abs(dx)<.08?0:f(dx),Math.abs(dz)<.08?0:-f(dz),0]}
+    else{const f=v=>Math.sign(v)*Math.max(.15,Math.min(Math.min(2,SPD),Math.abs(v)/6*Math.min(2,SPD)));cmd=[Math.abs(dx)<.08?0:f(dx),Math.abs(dz)<.08?0:-f(dz),0]}
   }else if(ldS===3){
     const cd=ldInfo.cd;let r=ldTry(cd,ldInfo.force);
     if(!r){
@@ -1901,8 +1906,8 @@ setEnv('gp');setChassis('B');
   qmc+=(qm-qmc)*Math.min(1,dt*4);mastG.rotation.y=qmc*D;setT(mlb,Math.round(qmc)+'°');
   const rkT=rkAEl.checked?8*Math.sin(performance.now()/1000*1.3):+rkSEl.value;
   rkC+=(rkT-rkC)*Math.min(1,dt*6);rockP.rotation.x=zbeta-rkC*D;setT(rkVEl,(rkC-zbeta/D).toFixed(1)+'°');
-  qsc+=(qs-qsc)*Math.min(1,dt*4);const sY=.5+.6*qsc/100;slide.position.y=sY;tray.position.y=1-sY;rod.scale.y=Math.max(.05,sY-.3);rod.position.y=.65+rod.scale.y/2;tip.position.y=sY+.65;setT(slb,Math.round(qsc)+'%');
-  for(let i=0;i<NC;i++){zc[i]+=(zt[i]-zc[i])*Math.min(1,dt*8);cups[i].mat.emissiveIntensity=zc[i]*.8;cups[i].mesh.scale.y=.3*(1-zc[i]*.18)}
+  qsc+=(qs-qsc)*Math.min(1,dt*4*SPD);const sY=.5+.6*qsc/100;slide.position.y=sY;tray.position.y=1-sY;rod.scale.y=Math.max(.05,sY-.3);rod.position.y=.65+rod.scale.y/2;tip.position.y=sY+.65;setT(slb,Math.round(qsc)+'%');
+  for(let i=0;i<NC;i++){zc[i]+=(zt[i]-zc[i])*Math.min(1,dt*8*SPD);cups[i].mat.emissiveIntensity=zc[i]*.8;cups[i].mesh.scale.y=.3*(1-zc[i]*.18)}
   robot.updateMatrixWorld(true);tip.getWorldPosition(tv);AB.worldToLocal(tv);
   perfT+=dt;radarT+=dt;logicT+=dt;if(perfT>=.10){perfT=0;analyze()}
   setT(tipEl,`末端(相对底座) x ${(tv.x*10*ASC).toFixed(0)} y ${(tv.y*10*ASC).toFixed(0)} z ${(-tv.z*10*ASC).toFixed(0)} cm  吸嘴 ${zt.reduce((a,b)=>a+b,0)}/50 开`);
