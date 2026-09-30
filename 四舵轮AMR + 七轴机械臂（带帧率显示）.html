@@ -953,6 +953,8 @@ function pushRobot(b){   // 车体（有向矩形 12.0×10.1，高到顶板）�
   const vn=(b.vx||0)*bax*bsg+(b.vz||0)*baz*bsg;if(vn<0){b.vx-=vn*bax*bsg;b.vz-=vn*baz*bsg}
 }
 const GRAV=98,RESTIT=.2;   // 重力 9.8 m/s²（1 单位 = 10 cm）；碰撞恢复系数
+const _Ts=new THREE.Matrix4();
+function placeHeld(h){h.mesh.matrix.copy(j7.matrixWorld).multiply(_Ts.makeTranslation(0,slide.position.y-h.sy0,0)).multiply(h.rel);h.mesh.matrixWorldNeedsUpdate=true}   // 箱子固连在吸盘板上：吸盘板沿工具轴相对 j7 的位移 slide.position.y-sy0 带着箱子一起动
 function releaseHeld(){
   const h=held.obj,m=h.mesh;m.matrixAutoUpdate=true;m.matrix.decompose(m.position,m.quaternion,m.scale);m.scale.set(1,1,1);
   const eu=new THREE.Euler().setFromQuaternion(m.quaternion,'YXZ'),k=Math.round(eu.y/(Math.PI/2));m.rotation.set(0,k*Math.PI/2,0);
@@ -979,7 +981,7 @@ function graspStep(dt){
   cups.forEach((c,k)=>c.mesh.getWorldPosition(gv.cw[k]));
   let info='',sealNow=[];
   if(held.obj){
-    const h=held.obj;h.mesh.matrix.copy(j7.matrixWorld).multiply(h.rel);h.mesh.matrixWorldNeedsUpdate=true;
+    const h=held.obj;placeHeld(h);
     const still=h.seal.filter(k=>zt[k]>.5);sealNow=still;
     info=`已吸附 1 箱（${still.length}/${h.seal.length} 个吸嘴保持真空）`;
     if(still.length<3){releaseHeld();info='吸嘴真空撤除，箱子掉落'}
@@ -1001,7 +1003,7 @@ function graspStep(dt){
           mesh.quaternion.premultiply(qa);const c2=fc.clone().add(cd.c.clone().sub(fc).applyQuaternion(qa)),Pc=gv.tp.clone().addScaledVector(d,-.08);   // 吸嘴口比 tip 点靠后约 0.8 mm×…（局部 0.04）
           c2.addScaledVector(d,Pc.clone().sub(fc).dot(d));mesh.position.copy(c2)}
         mesh.updateMatrix();mesh.updateMatrixWorld(true);mesh.matrixAutoUpdate=false;
-        held.obj={mesh,rel:new THREE.Matrix4().copy(j7.matrixWorld).invert().multiply(mesh.matrixWorld),seal:best.ev.seal.slice()};
+        held.obj={mesh,rel:new THREE.Matrix4().copy(j7.matrixWorld).invert().multiply(mesh.matrixWorld),seal:best.ev.seal.slice(),sy0:slide.position.y};
         info='吸附成功';
       }
     }else info=anyOn?'吸嘴已开启，未接触箱面':'未接触（把吸盘贴近货面并开启吸嘴；关闭吸嘴即释放）';
@@ -1165,6 +1167,7 @@ function planPlace(){   // 把箱子放到车尾输送线起点上方：吸盘�
 }
 // ======== 搬运路径：抽出后先把箱子抬到车体上方，绕 J1 转向车尾（箱子始终水平，吸盘轴沿径向朝外并逐渐转到正后方），再落到输送线上 ========
 function poseYaw(psi){const c=Math.cos(psi),s=Math.sin(psi);TX=[0,-1,0];TY=[c,0,-s];TZ=[s,0,c]}   // 吸盘轴水平指向 ψ（0=+x，向左转为正），底托朝下
+const SLIDE_T=1.2;   // 吸盘板行程（世界）：0.6 局部 × 2 = 12 cm
 const NEARW=[.5,.6,3,.6,1,1,1];   // 相邻航点选解的关节代价权重：J3（肘）尽量少动，让 J2（肩）和 J4（前臂）配合完成抬高/收拢
 function unwrapQ(q,qp){   // 把 J1/J5/J7 的角度展开到与上一航点连续（在 ±180° 附近，wrapD 会让同一姿态跳到另一侧，样条就会绕远路反转）
   for(const i of[0,4,6]){let v=q[i];while(v-qp[i]>180)v-=360;while(v-qp[i]<-180)v+=360;if(v>=JN[i][1]-.5&&v<=JN[i][2]+.5)q[i]=v}
@@ -1257,7 +1260,7 @@ function splineCfgs(list,q0,step=4){   // 复刻 startTraj 的样条，按“最
   out.push(pts[n-1]);return out;
 }
 // 一批构型里有多少个会碰撞；lastSkip：最后一个构型是贴合位（吸盘板可碰目标箱）
-function cfgsBad(cfgs,rel,st,hs,stH,lastSkip){let bad=0;cfgs.forEach((q,i)=>{if(armHits(q,100,rel,st,hs,lastSkip&&i===cfgs.length-1,stH))bad++});return bad}
+function cfgsBad(cfgs,rel,st,hs,stH,lastSkip,slideV=100){let bad=0;cfgs.forEach((q,i)=>{if(armHits(q,slideV,rel,st,hs,lastSkip&&i===cfgs.length-1,stH))bad++});return bad}
 function planCarryTop(q0,P){   // 顶吸携带：先抬起，再沿 dir 方向一次转向车尾。箱子在世界系中朝向不变（长边始终沿 x）→ 转到侧向时横向只占箱宽的一半，不会撞侧壁。P={dir:±1 转向, Rc:回转半径, yh:携带高度}
   P=P||{dir:1,Rc:8,yh:null};
   const E=ENV[envK],S=new THREE.Vector3();j2.getWorldPosition(S);
@@ -1279,7 +1282,7 @@ function planCarryTop(q0,P){   // 顶吸携带：先抬起，再沿 dir 方向�
 }
 function carryFront(q0,P){   // 前吸携带：抽出 → 边转边收（半径收到 Rm）→ 沿 dir 方向一次转向车尾 → 落到输送线。P={dir:±1 转向, Rm:回转半径, yc:携带高度}
   const E=ENV[envK],S=new THREE.Vector3();j2.getWorldPosition(S);
-  const xr=apInfo.xf-6,dz0=apInfo.c.z-S.z,psi0=Math.atan2(-dz0,xr-S.x),R0=Math.hypot(xr-S.x,dz0);   // 抽出位相对肩部的极坐标（方位角 ψ0、半径 R0）
+  const xr=apInfo.xf-6-SLIDE_T,dz0=apInfo.c.z-S.z,psi0=Math.atan2(-dz0,xr-S.x),R0=Math.hypot(xr-S.x,dz0);   // 抽出位吸盘面 xf-6，吸盘板后撤 SLIDE_T 之后在 xr   // 抽出位相对肩部的极坐标（方位角 ψ0、半径 R0）
   const yc=P.yc,Rm=Math.min(P.Rm,R0),dir=P.dir,cy=apInfo.c.y,sweep=dir*Math.PI-psi0;   // 转角：从 ψ0 到正后方（±π），J1 只朝一个方向转
   const cP=robot.localToWorld(new THREE.Vector3(REAR_X-3.6,BELT_TOP+E.hy+.3,0)),fx=cP.x+2.925,fz=S.z-dir*.3,Rend=Math.max(1,S.x-fx),yEnd=cP.y;   // 落点：车尾输送线起点（终点略偏向转向一侧：腕心方位角落在 ±180° 的同一侧）
   const sm=t=>t*t*(3-2*t);
@@ -1291,7 +1294,7 @@ function carryFront(q0,P){   // 前吸携带：抽出 → 边转边收（半径�
   for(const f of[.08,.2,.35,.5,.65,.78,.88,.95])wps.push(at(f));
   wps.push({tip:[fx,yEnd,fz],psi:dir*Math.PI});
   const path=[];let qp=q0,failed=false;
-  wps.forEach((w,k)=>{if(failed)return;poseYaw(w.psi);const r=nearSolve(w.tip,100,qp,k>=1?dir:0);if(!r){failed=true;return}path.push(r.q);qp=r.q});
+  wps.forEach((w,k)=>{if(failed)return;poseYaw(w.psi);const r=nearSolve(w.tip,0,qp,k>=1?dir:0);if(!r){failed=true;return}path.push(r.q);qp=r.q});
   setAxes(false);return failed?null:path;
 }
 function planCarryBest(pl,quick){   // 搜索无碰撞的携带路径：转向（往离侧壁远的一侧转）、回转半径、携带高度依次尝试；返回 {path,bad}，bad=碰撞采样数（0=无碰撞）
@@ -1305,17 +1308,18 @@ function planCarryBest(pl,quick){   // 搜索无碰撞的携带路径：转向�
   const vars=[],roofY=E.room?E.room[3]:99;   // 车顶内侧高度
   if(mode==='front'){   // 前吸：箱子挂在吸盘前方，箱心与吸盘同高 → 箱顶不能超过车顶
     const Rc=(apInfo.xf-6)-S.x,hi=Math.min(roofY-E.hy-.5,Math.max(c.y,S.y+9)),ycs=[...new Set([hi,hi-2.5,hi-5,hi-8].filter(v=>v>=S.y+4).map(v=>Math.round(v*10)/10))];
-    for(const yc of ycs)for(const Rm of quick?[6.5,99]:[6.5,8,99])if(!(Rm<99&&Rm>=Rc))vars.push({Rm,yc})}
+    for(const yc of ycs)for(const Rm of quick?[5.5,99]:[5,6,8,99])if(!(Rm<99&&Rm>=Rc))vars.push({Rm,yc})}
   else{   // 顶吸：箱子挂在吸盘下方，腕心在吸盘上方 4.1 → 吸盘面不能高过车顶下方 5.2
     const hiT=Math.min(roofY-5.2,Math.max(S.y+8,c.y+E.hy+.8)),ycs=[...new Set([hiT,S.y+5].map(v=>Math.round(v*10)/10))];
     for(const yh of ycs)for(const Rc of quick?[8,6.5]:[8,7,6])vars.push({Rc,yh})}
   let best=null;
   for(const dir of dirs)for(const v of vars){
-    RMIN_WC=(mode==='front'&&v.Rm<7)?1.5:3;
+    RMIN_WC=(mode==='front'&&v.Rm<6)?1.5:3;
     const path=mode==='front'?carryFront(pl.q3,{dir,Rm:v.Rm,yc:v.yc}):planCarryTop(pl.q3,{dir,Rc:v.Rc,yh:v.yh});
     RMIN_WC=3;
     if(!path)continue;
-    const bad=cfgsBad(splineCfgs([pl.q3,...path],pl.q2,quick?5:6),rel,stRed,hs,stSkip,false);
+    const front=mode==='front',relC=front?new THREE.Matrix4().makeTranslation(0,-.6,0).multiply(rel):rel;   // 前吸：吸盘板已后撤（局部 -0.6），箱子随之后移
+    const bad=cfgsBad(splineCfgs([pl.q3,...path],pl.q2,quick?5:6),relC,stRed,hs,stSkip,false,front?0:100);
     if(bad===0)return{path,bad:0,dir};
     if(!best||bad<best.bad)best={path,bad,dir};
   }
@@ -1431,6 +1435,7 @@ function autoStep(dt){
     if(conv()&&apT>.1){apS=6;say('等待吸附…')}
   }else if(apS===6){
     if(held.obj){
+      if(apInfo.pm==='front'){qs=0;sls.value=0}   // 正对着箱子吸：吸住后吸盘板后撤，底托同时前伸托住箱底（两者反向联动）；箱子被拉回，回转半径也能收得更小
       if(apInfo.carry){setVia([apInfo.pl.q3,...apInfo.carry]);apS=8;say('抽出箱子，抬过车体，转向车尾…')}   // 抽出 → 抬升 → 转向 → 落到输送线：一条连续轨迹
       else{setJ(apInfo.pl.q3);apS=7;say('已吸附，抽出箱子…')}
     }else if(apT>1.5){apMsg='未吸附成功（贴合吸嘴不足）';apS=0}
@@ -1647,7 +1652,7 @@ setEnv('gp');setChassis('B');
   perfT+=dt;radarT+=dt;logicT+=dt;if(perfT>=.10){perfT=0;analyze()}
   setT(tipEl,`末端(相对底座) x ${(tv.x*10*ASC).toFixed(0)} y ${(tv.y*10*ASC).toFixed(0)} z ${(-tv.z*10*ASC).toFixed(0)} cm  吸嘴 ${zt.reduce((a,b)=>a+b,0)}/50 开`);
   // 已吸附的箱子每帧跟随吸盘（graspStep 降频后，避免箱子相对吸盘抖动）；必须在雷达/相机求交之前更新
-  if(held.obj){held.obj.mesh.matrix.copy(j7.matrixWorld).multiply(held.obj.rel);held.obj.mesh.matrixWorldNeedsUpdate=true}
+  if(held.obj)placeHeld(held.obj);
   dynUpdate();
   const _r0=performance.now();if(radarT>=.05){const dtr=radarT;radarT=0;radarStep(dtr)}
   const _r1=performance.now();camStep(dt);
