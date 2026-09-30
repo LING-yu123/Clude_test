@@ -148,23 +148,24 @@ function mkLidar(x,y,z){
 }
 const lidar=mkLidar(4.6,7.8,0),lidar2=mkLidar(-3.0,7.8,-4.0),lidar3=mkLidar(-3.0,7.8,4.0);   // 雷达 2/3 避开急停按钮（-5.0, -3.5）
 
-// —— 舵轮模块：整体放大 KS 倍，轮径约 25 cm ——
-const KS=1.7,R0=.75,R=R0*KS;
+// —— 舵轮模块：整体放大 KS 倍；车轮直径 160 mm（半径 RW=0.8 单位，1 单位 = 10 cm）——
+// 车轮在模块局部系中的半径 R0=RW/KS；轮宽、轮辋、辐条、轮毂按 WF 缩放；叉臂随轴心高度调整，模块上部（与车身连接处）尺寸不变
+const KS=1.7,RW=.8,R0=RW/KS,R=RW,WF=R0/.75,FB=Math.max(.15,R0-.3),FH=1.13-FB,FC=(FB+1.13)/2;
 function swerve(x,z,par=robot){
   cyl(.62*KS,.62*KS,.3*KS,alu,x,1.4*KS,z,par);
   cyl(.5*KS,.5*KS,.12*KS,acc,x,1.2*KS,z,par);
   const steer=new THREE.Group();steer.position.set(x,0,z);steer.scale.setScalar(KS);par.add(steer);
   cyl(.55,.55,.14,dark,0,1.06,0,steer);
-  [-.34,.34].forEach(s=>box(.9,1.05,.1,alu,0,.62,s,steer));
+  [-.34,.34].forEach(s=>box(.9,FH,.1,alu,0,FC,s,steer));
   box(.9,.12,.78,alu,0,1.13,0,steer);
   cyl(.24,.24,.32,acc,0,R0,.56,steer,true);
   const wheel=new THREE.Group();wheel.position.y=R0;steer.add(wheel);
-  cyl(R0,R0,.46,rubber,0,0,0,wheel,true);
-  [-.235,.235].forEach(s=>{
-    cyl(.5,.5,.03,alu,0,0,s,wheel,true);
-    for(let i=0;i<3;i++){const b=box(.95,.1,.03,dark,0,0,s,wheel);b.rotation.z=i*Math.PI/3}
+  cyl(R0,R0,.46*WF,rubber,0,0,0,wheel,true);
+  [-.235*WF,.235*WF].forEach(s=>{
+    cyl(.5*WF,.5*WF,.03,alu,0,0,s,wheel,true);
+    for(let i=0;i<3;i++){const b=box(.95*WF,.1*WF,.03,dark,0,0,s,wheel);b.rotation.z=i*Math.PI/3}
   });
-  cyl(.12,.12,.06,acc,0,0,.27,wheel,true);
+  cyl(.12*WF,.12*WF,.06,acc,0,0,.27*WF,wheel,true);
   return{steer,wheel,x,z,th:0,sg:1};
 }
 // 后轴跷跷板（摇臂）悬挂：两个后轮舵轮模块装在一根横梁上，横梁绕后轴中心的纵向（x 向）销轴摆动，
@@ -197,13 +198,13 @@ function swerveS(x,z){
   const mv=new THREE.Group();mv.position.set(x,0,z);grpB.add(mv);                                   // 活动部分：随 dy 上下
   const steer=new THREE.Group();steer.scale.setScalar(KS);mv.add(steer);
   cyl(.55,.55,.14,dark,0,1.06,0,steer);
-  [-.34,.34].forEach(sg=>box(.9,1.05,.1,alu,0,.62,sg,steer));
+  [-.34,.34].forEach(sg=>box(.9,FH,.1,alu,0,FC,sg,steer));
   box(.9,.12,.78,alu,0,1.13,0,steer);
   cyl(.24,.24,.32,acc,0,R0,.56,steer,true);
   const wheel=new THREE.Group();wheel.position.y=R0;steer.add(wheel);
-  cyl(R0,R0,.46,rubber,0,0,0,wheel,true);
-  [-.235,.235].forEach(sg=>{cyl(.5,.5,.03,alu,0,0,sg,wheel,true);for(let i=0;i<3;i++){const b=box(.95,.1,.03,dark,0,0,sg,wheel);b.rotation.z=i*Math.PI/3}});
-  cyl(.12,.12,.06,acc,0,0,.27,wheel,true);
+  cyl(R0,R0,.46*WF,rubber,0,0,0,wheel,true);
+  [-.235*WF,.235*WF].forEach(sg=>{cyl(.5*WF,.5*WF,.03,alu,0,0,sg,wheel,true);for(let i=0;i<3;i++){const b=box(.95*WF,.1*WF,.03,dark,0,0,sg,wheel);b.rotation.z=i*Math.PI/3}});
+  cyl(.12*WF,.12*WF,.06,acc,0,0,.27*WF,wheel,true);
   [-.5,.5].forEach(o=>cyl(.1,.1,2.6,chromeM,o,3.2,0,mv));                                        // 导向杆（随活动部分上下，伸入固定座）
   cyl(.24,.24,.7,M(0x2a3038,.6,.4),x,2.3,z,grpB);                                                // 减振器缸筒（活动侧）
   const rod=cyl(.1,.1,1,chromeM,x,2.6,z,grpB);                                                   // 减振器活塞杆（固定侧，长度随行程变化）
@@ -632,7 +633,7 @@ occ(j5,0,.175,0,.72,.35,.72);occ(j6,0,0,0,.68,.68,.76);occ(j7,0,.15,0,.6,.3,.6);
 occ(slide,0,.4,0,1.5,.1,2.9);occ(tray,.81,.75,0,.06,1.5,2.9);occ(tray,.68,.15,0,.4,.3,1.3);                     // 吸盘板、底托
 occ(mastG,0,PH/2,0,.3,PH,.3);occ(camU,0,0,0,.4,.205,.475);occ(camM,0,0,0,.4,.205,.475);occ(camL,0,0,0,.4,.205,.475);   // 立柱、三台相机
 occ(liftCar,0,0,0,.3,.5,.34);occ(liftRail,0,0,0,.12,RAIL_L,.12);occ(grpA,5.7,3.9,0,.6,1.4,9.8);occ(grpA,-5.7,3.9,0,.6,1.4,9.8);occ(grpB,5.7,4.4,0,.6,1.4,9.8);occ(grpB,-5.7,4.4,0,.6,1.4,9.8);   // 前后防撞条
-for(const M of[modsA,modsB])for(const k in M){occ(M[k].steer,0,.75,0,1.5,1.5,.9);occ(M[k].steer,0,.6,0,.9,1.2,.8)}   // 四个舵轮（车轮 + 转向叉），随转向和悬挂运动
+for(const M of[modsA,modsB])for(const k in M){occ(M[k].steer,0,R0,0,2*R0,2*R0,.5);occ(M[k].steer,0,FC,0,.9,FH,.8)}   // 四个舵轮（车轮 + 转向叉），随转向和悬挂运动
 
 const _dp=[],_dg=[];   // dynB / dynG 元素复用，避免每帧分配
 function dynUpdate(){   // 把落地/在输送线上的箱子（轴对齐）和吸盘吸着的箱子（取外接轴对齐盒）交给射线求交；按 x 排序后每 8 个一组，带组包围盒
