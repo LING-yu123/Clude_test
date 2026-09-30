@@ -814,9 +814,14 @@ function updatePose(dt){
       let ok=false;
       for(let d=0;d<4&&!ok;d++){const s3=solve3([0,1,2,3].filter(i=>i!==d),H);if(!s3)continue;if(s3[0]+s3[1]*SX[d]+s3[2]*SZ[d]>=H[d]-1e-6){zc=s3[0];p=s3[1];q=s3[2];ok=true}}
       if(!ok){zc=mean;p=pl;q=ql}
-    }else{                // 悬挂工作：车体只按地形的一部分起伏（k 自适应，保证各轮行程不超限），其余由悬挂吸收
+    }else{                // 悬挂工作：地形分成两部分——
+                          // ① 大尺度（月台/桥板/整体抬升）：平面，车体完全跟随，各轮相对车体不动，弹簧行程为 0；
+                          // ② 局部凸起：车体只跟随其中一部分（k 自适应，保证各轮行程不超限），其余由悬挂吸收
+      const H0=SX.map((lx,i)=>floorY(pos.x+lx*cs_+SZ[i]*sn_)),Hb=H.map((h,i)=>h-H0[i]);
+      const m0=(H0[0]+H0[1]+H0[2]+H0[3])/4,p0=((H0[0]+H0[1])-(H0[2]+H0[3]))/16,q0=((H0[1]+H0[3])-(H0[0]+H0[2]))/14.4;
+      const mb=(Hb[0]+Hb[1]+Hb[2]+Hb[3])/4,pb=((Hb[0]+Hb[1])-(Hb[2]+Hb[3]))/16,qb=((Hb[1]+Hb[3])-(Hb[0]+Hb[2]))/14.4;
       for(let k=.3;;k+=.1){
-        zc=k*mean;p=k*pl;q=k*ql;
+        zc=m0+k*mb;p=p0+k*pb;q=q0+k*qb;
         let up=0;lk.forEach((l,i)=>{if(l)up=Math.max(up,H[i]-(zc+p*SX[i]+q*SZ[i]))});zc+=up;    // 锁止的轮子不能陷入地面：车体相应抬起
         let bad=false;lk.forEach((l,i)=>{if(!l&&Math.abs(H[i]-(zc+p*SX[i]+q*SZ[i]))>STR)bad=true});
         if(!bad||k>=1)break;
