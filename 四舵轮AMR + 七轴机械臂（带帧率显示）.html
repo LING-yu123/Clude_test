@@ -42,6 +42,7 @@ input[type=range]{flex:1;accent-color:var(--accent)}
 #dcr{width:200px;height:113px}#dcc{width:151px;height:113px}
 #dcw span{position:absolute;left:5px;top:3px;font-size:9px;color:#fde68a;text-shadow:0 0 3px #000}
 #dlg{height:5px}
+#ui,#arm,#sg,#lp{max-height:calc(100vh - 24px);overflow-y:auto}   /* 面板比窗口高时可滚动，避免底部控件被截掉 */
 #lp{position:absolute;left:404px;bottom:calc(12px + env(safe-area-inset-bottom,0px));width:236px;background:var(--panel);backdrop-filter:blur(8px);border-radius:12px;padding:8px 12px;font-size:12px}
 #lp summary{cursor:pointer;font-size:14px;margin-bottom:4px}
 #lp label{display:flex;align-items:center;gap:6px;margin:3px 0}
@@ -423,7 +424,7 @@ function corrTex(rep){   // 波纹钢板
   const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(rep,1);return t;
 }
 // ======== 输送线常量与皮带贴图 ========
-const BELT_TOP=7.5,BELT_W=6.2,BELT_V=8,REAR_X=-6,DOCK_START=-8.5,DOCK_END=-34,DOCKZ=0;   // 皮带面高 0.75 m；线速 0.8 m/s
+const BELT_TOP=7.5,BELT_W=8.4,BELT_V=8,REAR_X=-6,DOCK_START=-8.5,DOCK_END=-34,DOCKZ=0;   // 皮带面高 0.75 m；线速 0.8 m/s
 function beltTex(){const c=document.createElement('canvas');c.width=64;c.height=16;const g=c.getContext('2d');g.fillStyle='#1c2229';g.fillRect(0,0,64,16);
   for(let i=0;i<4;i++){g.fillStyle='#39434f';g.fillRect(i*16+1,1,13,14)}g.fillStyle='#f5c400';g.fillRect(0,0,2,16);
   const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;return t}
@@ -914,17 +915,47 @@ function surf(b){   // 箱子正下方的输送线表面：1=车尾输送线，2
   if(v.x<REAR_X+.3&&v.x>REAR_X-convL-.3&&Math.abs(v.z)<BELT_W/2){const w=robot.localToWorld(new THREE.Vector3(v.x,BELT_TOP,v.z));if(b.pos.y-b.hs[1]>w.y-1.2)return{y:w.y,type:1}}
   return null;
 }
-function landY(b){   // 落点高度：地面 / 输送线 / 其正下方已静止的落地箱的顶面
+function landY(b){   // 落点高度：地面 / 输送线 / 货垛与障碍顶面 / 车体顶板 / 其正下方箱子的顶面
   let y=floorY(b.pos.x)+b.hs[1];const sf=surf(b);if(sf)y=Math.max(y,sf.y+b.hs[1]);
-  for(const r of freeBoxes){if(r===b||r.state!=='rest')continue;
+  const bot=b.pos.y-b.hs[1];
+  for(const r of freeBoxes){if(r===b||r.gone)continue;   // 落地、输送线上、排队中的箱子都能托住上面的箱子
     if(Math.abs(b.pos.x-r.pos.x)<b.hs[0]+r.hs[0]-.05&&Math.abs(b.pos.z-r.pos.z)<b.hs[2]+r.hs[2]-.05&&r.pos.y<b.pos.y)y=Math.max(y,r.pos.y+r.hs[1]+b.hs[1])}
+  for(let i=0;i<bx.length;i++){const c=bx[i];   // 货垛 / 障碍：箱底已在其顶面附近或以上才算落在顶上
+    if(c[1]+c[4]<=bot+.3&&Math.abs(b.pos.x-c[0])<b.hs[0]+c[3]-.05&&Math.abs(b.pos.z-c[2])<b.hs[2]+c[5]-.05)y=Math.max(y,c[1]+c[4]+b.hs[1])}
+  {const dx=b.pos.x-robot.position.x,dz=b.pos.z-robot.position.z,ca=Math.cos(yaw),sa=Math.sin(yaw),lx=dx*ca-dz*sa,lz=dx*sa+dz*ca,top=robot.position.y+7.5;   // 车体顶板（忽略车体倾斜）
+    if(Math.abs(lx)<5.3+b.hs[0]*.5&&Math.abs(lz)<4.9+b.hs[2]*.5&&bot>=top-.3)y=Math.max(y,top+b.hs[1])}
   return y;
 }
+// —— 箱子碰撞：与货垛/箱壁/圆柱障碍（静止长方体）、与其他箱子、与车体 ——
+// 都用“最小穿透轴”推出：竖直轴向上=落在顶上，水平轴=侧向挡住并带一点反弹；接触很浅（<2 mm 量级）视为静止接触，不处理
+function pushBox(b,cx,cy,cz,hx,hy,hz,o,forceX){   // b 为动态箱；o 为另一个动态箱（两者各推一半）或 null（静止物体）
+  const px=b.pos.x-cx,py=b.pos.y-cy,pz=b.pos.z-cz,ox=b.hs[0]+hx-Math.abs(px),oy=b.hs[1]+hy-Math.abs(py),oz=b.hs[2]+hz-Math.abs(pz);
+  if(ox<=0||oy<=.02||oz<=0)return false;
+  const onTop=b.pos.y-b.hs[1]>=cy+hy-.5,under=b.pos.y+b.hs[1]<=cy-hy+.5;   // 箱底在对方顶面附近/以上 → 落在顶上；箱顶在对方底面附近/以下 → 顶到底面；否则只能是侧向撞上，走水平轴
+  if(onTop||under){if(onTop){b.pos.y=cy+hy+b.hs[1];if(b.vy<0)b.vy=0}else{b.pos.y=cy-hy-b.hs[1];if(b.vy>0)b.vy=0}}
+  else if(forceX||ox<=oz){const sg=px>=0?1:-1;if(o){b.pos.x+=sg*ox/2;o.pos.x-=sg*ox/2;const m=((b.vx||0)+(o.vx||0))/2;b.vx=o.vx=m*.5}else{b.pos.x+=sg*ox;b.vx=sg*Math.abs(b.vx||0)*RESTIT}}
+  else{const sg=pz>=0?1:-1;if(o){b.pos.z+=sg*oz/2;o.pos.z-=sg*oz/2;const m=((b.vz||0)+(o.vz||0))/2;b.vz=o.vz=m*.5}else{b.pos.z+=sg*oz;b.vz=sg*Math.abs(b.vz||0)*RESTIT}}
+  return true;
+}
+function onRobotTop(b){   // 箱子静止在车体顶板上？是则返回它在车体局部系中的 (x,z)，否则 null
+  const dx=b.pos.x-robot.position.x,dz=b.pos.z-robot.position.z,ca=Math.cos(yaw),sa=Math.sin(yaw),lx=dx*ca-dz*sa,lz=dx*sa+dz*ca;
+  return Math.abs(b.pos.y-(robot.position.y+7.5+b.hs[1]))<.1&&Math.abs(lx)<5.3+b.hs[0]*.5&&Math.abs(lz)<4.9+b.hs[2]*.5?{x:lx,z:lz}:null;
+}
+function pushRobot(b){   // 车体（有向矩形 12.0×10.1，高到顶板）与箱子的水平分离轴检验；箱子在顶板上（箱底≥顶板）不算碰撞
+  if(b.pos.y-b.hs[1]>=robot.position.y+7.5-.05)return;
+  const c=Math.cos(yaw),sn=Math.sin(yaw),dx=b.pos.x-robot.position.x,dz=b.pos.z-robot.position.z;let best=1e9,bax=0,baz=0,bsg=1;
+  for(const [ax,az] of [[1,0],[0,1],[c,-sn],[sn,c]]){
+    const rr=6.0*Math.abs(c*ax-sn*az)+5.05*Math.abs(sn*ax+c*az),br=b.hs[0]*Math.abs(ax)+b.hs[2]*Math.abs(az),d=dx*ax+dz*az,ov=rr+br-Math.abs(d);
+    if(ov<=0)return;if(ov<best){best=ov;bax=ax;baz=az;bsg=d>=0?1:-1}}
+  b.pos.x+=bsg*bax*best;b.pos.z+=bsg*baz*best;
+  const vn=(b.vx||0)*bax*bsg+(b.vz||0)*baz*bsg;if(vn<0){b.vx-=vn*bax*bsg;b.vz-=vn*baz*bsg}
+}
+const GRAV=98,RESTIT=.2;   // 重力 9.8 m/s²（1 单位 = 10 cm）；碰撞恢复系数
 function releaseHeld(){
   const h=held.obj,m=h.mesh;m.matrixAutoUpdate=true;m.matrix.decompose(m.position,m.quaternion,m.scale);m.scale.set(1,1,1);
   const eu=new THREE.Euler().setFromQuaternion(m.quaternion,'YXZ'),k=Math.round(eu.y/(Math.PI/2));m.rotation.set(0,k*Math.PI/2,0);
   const hy=m.userData.hy,hs=(Math.abs(k)%2)?[1.9,hy,2.925]:[2.925,hy,1.9];
-  freeBoxes.push({mesh:m,pos:m.position,vy:0,vx:0,hs,state:'fall'});held.obj=null;
+  freeBoxes.push({mesh:m,pos:m.position,vy:0,vx:0,vz:0,hs,state:'fall'});held.obj=null;
 }
 function resetCargo(){
   for(const k of ['gp','hq']){const E=ENV[k];if(!E.im)continue;E.im.instanceMatrix.array.set(E.orig);E.im.instanceMatrix.needsUpdate=true;E.exist.fill(true);E.cyc.set(E.cartons.map(c=>c[1]));E.vy.fill(0);E.rebuild()}
@@ -975,7 +1006,8 @@ function graspStep(dt){
   }
   // 贴合的吸嘴显示为绿色
   cups.forEach((c,k)=>c.mat.emissive.setHex(sealNow.includes(k)?0x4ade80:0x22e5d0));
-  // 掉落的箱子：自由落体到地面
+  // 掉落的箱子：重力、落地、弹跳、堆叠与碰撞
+  const dyn=[];
   for(const b of freeBoxes){
     if(b.state==='conv1'){   // 车尾输送线：向后送，到末端落到月台输送线上
       b.loc.x-=BELT_V*dt;b.pos.copy(robot.localToWorld(new THREE.Vector3(b.loc.x,BELT_TOP+b.hs[1],b.loc.z)));
@@ -990,14 +1022,37 @@ function graspStep(dt){
      b.state=b.pos.x<=minX+.02?'stop':'conv2';
       if(b.state==='stop'){b.tw=(b.tw||0)+dt;if(b.tw>4)b.gone=true}else b.tw=0;   // 在月台输送线末端停满 4 s 视为被取走，避免箱子越堆越多、雷达/相机求交越来越慢
       continue}   // 与前一个箱子太近时原地等待，不后退
-    const fl=landY(b);
-    if(b.state==='rest'){if(b.pos.y>fl+.05){b.state='fall';b.vy=0}continue}
-    b.vy-=98*dt;b.pos.y+=b.vy*dt;if(b.vx){b.pos.x+=b.vx*dt;b.vx*=Math.max(0,1-3*dt)}
-    const fl2=landY(b);
-    if(b.pos.y<=fl2){b.pos.y=fl2;if(b.vy<-15)b.vy*=-.2;else{
-      b.vy=0;b.vx=0;const sf=surf(b);
-      if(sf&&Math.abs(fl2-(sf.y+b.hs[1]))<.02){b.state=sf.type===1?'conv1':'conv2';if(sf.type===1){const v=robot.worldToLocal(b.pos.clone());b.loc={x:v.x,z:v.z}}}
-      else b.state='rest'}}}
+    dyn.push(b)}   // 其余（落下 / 静止）交给下面的刚体步进
+  for(let sub=0;sub<2;sub++){const h=dt/2;   // 两个子步，避免 30 Hz 逻辑步长下穿透
+    for(const b of dyn){
+      b.vx=b.vx||0;b.vz=b.vz||0;
+      if(b.state==='rest'&&b.rl){const ca=Math.cos(yaw),sa=Math.sin(yaw);   // 顶板上的箱子随车体一起平移/转动
+        b.pos.set(robot.position.x+b.rl.x*ca+b.rl.z*sa,robot.position.y+7.5+b.hs[1],robot.position.z-b.rl.x*sa+b.rl.z*ca)}
+      if(b.state==='rest'){const fl=landY(b);if(b.pos.y>fl+.05){b.state='fall';b.vy=0;b.rl=null}else{b.pos.y=Math.max(b.pos.y,fl);b.vx=b.vz=0}}
+      if(b.state!=='fall')continue;
+      b.vy-=GRAV*h;b.pos.y+=b.vy*h;b.pos.x+=b.vx*h;b.pos.z+=b.vz*h;const dr=Math.max(0,1-.5*h);b.vx*=dr;b.vz*=dr;   // 空中轻微阻力
+      const fl2=landY(b);
+      if(b.pos.y<=fl2){b.pos.y=fl2;
+        if(b.vy<-15){b.vy*=-RESTIT;b.vx*=.6;b.vz*=.6}   // 撞击 >1.5 m/s：反弹一下，水平速度被摩擦吃掉一部分
+        else{b.vy=0;const fr=Math.max(0,1-12*h);b.vx*=fr;b.vz*=fr;   // 贴地滑动：摩擦很快让它停下
+          if(Math.hypot(b.vx,b.vz)<.5){b.vx=b.vz=0;const sf=surf(b);
+            if(sf&&Math.abs(fl2-(sf.y+b.hs[1]))<.02){b.state=sf.type===1?'conv1':'conv2';if(sf.type===1){const v=robot.worldToLocal(b.pos.clone());b.loc={x:v.x,z:v.z}}}
+            else{b.state='rest';b.rl=onRobotTop(b)}}}}
+    }
+    // 碰撞：先车体、再其他箱子、最后静止物体（货垛/障碍、箱壁）——静止物体优先级最高，箱子不会被车体或别的箱子挤进货垛或箱壁里
+    for(const b of dyn)pushRobot(b);
+    for(let i=0;i<freeBoxes.length;i++){const a=freeBoxes[i];if(a.gone)continue;
+      for(let j=i+1;j<freeBoxes.length;j++){const c=freeBoxes[j];if(c.gone)continue;
+        const ad=a.state==='fall'||a.state==='rest',cd=c.state==='fall'||c.state==='rest';
+        if(ad&&cd)pushBox(a,c.pos.x,c.pos.y,c.pos.z,c.hs[0],c.hs[1],c.hs[2],c);
+        else if(ad)pushBox(a,c.pos.x,c.pos.y,c.pos.z,c.hs[0],c.hs[1],c.hs[2],null);   // 输送线上的箱子当作静止障碍
+        else if(cd)pushBox(c,a.pos.x,a.pos.y,a.pos.z,a.hs[0],a.hs[1],a.hs[2],null)}}
+    for(const b of dyn){
+      for(let i=0;i<bx.length;i++){const c=bx[i];pushBox(b,c[0],c[1],c[2],c[3],c[4],c[5],null,envK!=='open')}   // 箱内：货面是相邻货垛拼成的一整面，侧向只沿 x 推出（否则在货垛接缝处会来回顶）
+      if(envK!=='open')for(let i=0;i<wl.length;i++){if(i===2)continue;const c=wl[i];pushBox(b,c[0],c[1],c[2],c[3],c[4],c[5],null)}   // wl[2] 是车顶：箱子不会出现在车顶之上，不参与
+      for(let i=0;i<cy2.length;i++){const c=cy2[i];pushBox(b,c[0],c[3]/2,c[1],c[2],c[3]/2,c[2],null)}
+    }
+  }
   for(let i=freeBoxes.length-1;i>=0;i--)if(freeBoxes[i].gone){dropBox(freeBoxes[i].mesh);freeBoxes.splice(i,1)}
   const left=E.exist?E.exist.filter(v=>v).length:0,gst=document.getElementById('gst');if(gst)setT(gst,(apS&&apMsg?apMsg+'\n':'')+(E.exist?`货物剩余 ${left} 箱 · `:'')+info);
 }
@@ -1322,20 +1377,24 @@ addEventListener('resize',resize);resize();
 // —— 界面小面板拖拽：在面板的空白处（标题、文字、背景）按住拖动；按钮/滑块/勾选框照常操作 ——
 (function(){
   const panels=['top','ui','arm','sg','lp'].map(id=>document.getElementById(id)).filter(Boolean);
-  let z=20;
-  const clampP=el=>{const w=el.offsetWidth,h=el.offsetHeight;el.style.left=Math.min(Math.max(0,innerWidth-w),Math.max(0,el.offsetLeft))+'px';el.style.top=Math.min(Math.max(0,innerHeight-h),Math.max(0,el.offsetTop))+'px'};
+  let z=20,saved={};const KEY='amr.panelPos';   // 面板位置记在浏览器里，刷新后保留（存储不可用时静默忽略）
+  try{saved=JSON.parse(localStorage.getItem(KEY)||'{}')||{}}catch(err){saved={}}
+  const store=()=>{try{const o={};panels.forEach(el=>{if(el.style.right==='auto')o[el.id]={l:el.offsetLeft,t:el.offsetTop,w:el.offsetWidth}});localStorage.setItem(KEY,JSON.stringify(o))}catch(err){/* 忽略 */}};
+  const clampP=el=>{const w=el.offsetWidth,h=el.offsetHeight;el.style.left=Math.min(Math.max(0,innerWidth-w),Math.max(0,el.offsetLeft))+'px';el.style.top=Math.min(Math.max(0,innerHeight-40),Math.max(0,el.offsetTop))+'px'};   // 面板比窗口高时只保证标题栏可见
   panels.forEach(el=>{
+    const sv=saved[el.id];if(sv&&isFinite(sv.l)&&isFinite(sv.t)&&isFinite(sv.w)){el.style.boxSizing='border-box';el.style.width=sv.w+'px';el.style.maxWidth='none';el.style.right='auto';el.style.bottom='auto';el.style.left=sv.l+'px';el.style.top=sv.t+'px';clampP(el)}
     el.style.cursor='move';el.style.touchAction='none';
     el.addEventListener('pointerdown',e=>{   // 移动超过 4 px 才算拖拽，否则仍是普通点击（如标题折叠）
       if(e.button!==0||e.target.closest('input,button,select,textarea,a'))return;
       const r=el.getBoundingClientRect(),ox=e.clientX-r.left,oy=e.clientY-r.top,sx=e.clientX,sy=e.clientY;let on=false;
       const mv=ev=>{
         if(!on){if(Math.hypot(ev.clientX-sx,ev.clientY-sy)<4)return;on=true;
-          el.style.width=r.width+'px';el.style.maxWidth='none';el.style.right='auto';el.style.bottom='auto';el.style.zIndex=++z;
+          el.style.boxSizing='border-box';el.style.width=r.width+'px';el.style.maxWidth='none';   // border-box：否则 width 不含内边距，面板拖一次就宽 24 px
+          el.style.right='auto';el.style.bottom='auto';el.style.zIndex=++z;
           try{el.setPointerCapture(e.pointerId)}catch(err){/* 指针已释放，忽略 */}}
         el.style.left=Math.min(Math.max(0,innerWidth-r.width),Math.max(0,ev.clientX-ox))+'px';el.style.top=Math.min(Math.max(0,innerHeight-40),Math.max(0,ev.clientY-oy))+'px'};
       const up=()=>{el.removeEventListener('pointermove',mv);el.removeEventListener('pointerup',up);el.removeEventListener('pointercancel',up);
-        if(on)el.addEventListener('click',ev=>ev.preventDefault(),{capture:true,once:true})};
+        if(on){el.addEventListener('click',ev=>ev.preventDefault(),{capture:true,once:true});store()}};
       el.addEventListener('pointermove',mv);el.addEventListener('pointerup',up);el.addEventListener('pointercancel',up);
     });
   });
