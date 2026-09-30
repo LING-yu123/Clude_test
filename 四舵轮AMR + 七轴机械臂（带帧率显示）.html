@@ -393,10 +393,10 @@ const DEMO=['准备','前伸','吸取','举高','侧向','准备','收纳'],tv=n
 
 // —— 雷达仿真：Livox Mid-360（360°×59°，-7°~52°，20 万点/s，10 Hz，0.1~40 m；1 单位 = 10 cm） ——
 const PPS=200000,ELMIN=-7*Math.PI/180,ELMAX=52*Math.PI/180,MINR=1,MAXR=400,NP=600000,TP=Math.PI*2;
-const bx=[],cy2=[];let room=null,envK='gp';
+const bx=[],cy2=[],dynB=[],wl=[];let room=null,envK='gp';   // bx 货垛/障碍；dynB 落地/输送/吸附中的箱子（每帧刷新）；wl 集装箱壳体（雷达/相机从箱外看时才参与）
 const envG={open:new THREE.Group(),gp:new THREE.Group(),hq:new THREE.Group()};
 Object.values(envG).forEach(g=>scene.add(g));
-const ENV={open:{bx:[],cy:[],room:null,bumps:[]},gp:{bx:[],cy:[],room:null,bumps:[]},hq:{bx:[],cy:[],room:null,bumps:[]}};
+const ENV={open:{bx:[],cy:[],wl:[],room:null,bumps:[]},gp:{bx:[],cy:[],wl:[],room:null,bumps:[]},hq:{bx:[],cy:[],wl:[],room:null,bumps:[]}};
 // 路面凸起物（半球形，半径 BR、高 BA，1 单位=10 cm）：车轮碾过时，前轮刚性抬起车体，后轮由跷跷板悬挂自动摆动适应
 const BR=2.4,BA=1.0,bumpMeshes=[];let bumpsOn=true;
 function addBumps(g,E,list,y0){
@@ -528,20 +528,24 @@ function buildContainer(key,H,Hd,color){
   E.exist=new Array(cartons.length).fill(true);E.cyc=Float32Array.from(cartons.map(c=>c[1]));E.vy=new Float32Array(cartons.length);E.elev=0;
   // 序号 = (面 sl × 6 列 j) × 6 层 l + l；sl 越大越靠近门（最外面）
   E.rebuild=()=>{   // 按每垛现存箱数重建雷达/相机用的包围盒
+    E.wl.length=0;const eh=E.elev||0;   // 壳体：两侧壁、顶、后壁、地板、门楣、门柱（随登车桥坡度整体抬升）
+    [[L/2,H/2,-(W/2+T/2),L/2,H/2,T/2],[L/2,H/2,W/2+T/2,L/2,H/2,T/2],[L/2,H+T/2,0,L/2,T/2,W/2+T],[L+T/2,H/2,0,T/2,H/2,W/2],[L/2,-.09,0,L/2,.1,W/2],
+     [.35,Hd+(H-Hd)/2,0,.35,(H-Hd)/2,W/2+T],[.35,Hd/2,-(W/2+T/2),.35,Hd/2,(T+.3)/2],[.35,Hd/2,W/2+T/2,.35,Hd/2,(T+.3)/2]].forEach(w=>E.wl.push([w[0],w[1]+eh,w[2],w[3],w[4],w[5]]));
     E.bx.length=0;
     for(let sl=0;sl<slices;sl++)for(let j=0;j<6;j++){let n=0;for(let l=0;l<NL;l++)if(E.exist[(sl*6+j)*NL+l])n++;if(!n)continue;
       E.bx.push([Xend-2.95-sl*SL,n*hc/2+E.elev,-11.75+1.95+j*3.9,3.0,n*hc/2,1.95])}
-    if(ENV[envK]===E){bx.length=0;E.bx.forEach(b=>bx.push(b))}
+    if(ENV[envK]===E){bx.length=0;E.bx.forEach(b=>bx.push(b));wl.length=0;E.wl.forEach(b=>wl.push(b))}
   };
   E.rebuild();
 }
 buildContainer('gp',23.9,22.8,0xb5402a);   // 标柜 20GP
 buildContainer('hq',27.0,25.85,0x2d5b86);  // 高柜 20HQ
 // 解析射线求交：地面 + 长方体 + 竖直圆柱
-let hK=0,hI=0,hAx=0,hSg=0;   // 最近命中：类型(1地面 2长方体 3圆柱 4箱内壁)、序号、法向轴、法向符号
+let hK=0,hI=0,hAx=0,hSg=0;   // 最近命中：类型(1地面 2长方体 3圆柱 4箱内壁 5箱体壳体)、序号、法向轴、法向符号
 function cast(ox,oy,oz,dx,dy,dz){   // 无内存分配、轴向展开的射线求交（雷达/相机每秒调用数十万次，是性能热点）
   let best=1e9,t,a,e,q;hK=0;
-  if(room&&ox>room[0]&&ox<room[1]&&oy>room[2]&&oy<room[3]&&oz>room[4]&&oz<room[5]){
+  const inRoom=!!room&&ox>room[0]&&ox<room[1]&&oy>room[2]&&oy<room[3]&&oz>room[4]&&oz<room[5];   // 起点在箱内：用内壁；在箱外：用壳体长方体
+  if(inRoom){
     let tt=1e9,ax=-1;
     if(dx>1e-9||dx<-1e-9){t=((dx>0?room[1]:room[0])-ox)/dx;if(t<tt){tt=t;ax=0}}
     if(dy>1e-9||dy<-1e-9){t=((dy>0?room[3]:room[2])-oy)/dy;if(t<tt){tt=t;ax=1}}
@@ -549,15 +553,16 @@ function cast(ox,oy,oz,dx,dy,dz){   // 无内存分配、轴向展开的射线�
     if(!(ax===0&&dx<0)&&tt>MINR&&tt<best){best=tt;hK=4;hAx=ax;hSg=(ax===0?dx:ax===1?dy:dz)>0?-1:1}   // 门端敞开：射线从门口出去不命中
   }
   if(dy<0){t=-oy/dy;if(t>MINR&&t<best){best=t;hK=1;hAx=1;hSg=1}}
-  for(let bi=0,n=bx.length;bi<n;bi++){
-    const b=bx[bi],cx=b[0],cy=b[1],cz=b[2],hx=b[3],hy=b[4],hz=b[5];
+  const nb=bx.length,nd=dynB.length,n=nb+nd+(inRoom?0:wl.length);
+  for(let bi=0;bi<n;bi++){
+    const b=bi<nb?bx[bi]:bi<nb+nd?dynB[bi-nb]:wl[bi-nb-nd],cx=b[0],cy=b[1],cz=b[2],hx=b[3],hy=b[4],hz=b[5];
     let t0=-1e9,t1=1e9,ka=0,sg=1;
     if(dx>1e-9||dx<-1e-9){a=(cx-hx-ox)/dx;e=(cx+hx-ox)/dx;if(a>e){q=a;a=e;e=q}if(a>t0){t0=a;ka=0;sg=dx>0?-1:1}if(e<t1)t1=e}else if(ox<cx-hx||ox>cx+hx)continue;
     if(t0>t1||t1<=MINR||t0>=best)continue;
     if(dy>1e-9||dy<-1e-9){a=(cy-hy-oy)/dy;e=(cy+hy-oy)/dy;if(a>e){q=a;a=e;e=q}if(a>t0){t0=a;ka=1;sg=dy>0?-1:1}if(e<t1)t1=e}else if(oy<cy-hy||oy>cy+hy)continue;
     if(t0>t1||t1<=MINR||t0>=best)continue;
     if(dz>1e-9||dz<-1e-9){a=(cz-hz-oz)/dz;e=(cz+hz-oz)/dz;if(a>e){q=a;a=e;e=q}if(a>t0){t0=a;ka=2;sg=dz>0?-1:1}if(e<t1)t1=e}else if(oz<cz-hz||oz>cz+hz)continue;
-    if(t0<=t1&&t0>MINR&&t0<best){best=t0;hK=2;hI=bi;hAx=ka;hSg=sg}
+    if(t0<=t1&&t0>MINR&&t0<best){best=t0;hK=bi<nb+nd?2:5;hI=bi;hAx=ka;hSg=sg}
   }
   for(let ci=0,n=cy2.length;ci<n;ci++){
     const c=cy2[ci],px=ox-c[0],pz=oz-c[1],aa=dx*dx+dz*dz;if(aa<1e-9)continue;
@@ -609,6 +614,14 @@ occ(mastG,0,PH/2,0,.3,PH,.3);occ(camU,0,0,0,.4,.205,.475);occ(camM,0,0,0,.4,.205
 occ(liftCar,0,0,0,.3,.5,.34);occ(liftRail,0,0,0,.12,RAIL_L,.12);occ(grpA,5.7,3.9,0,.6,1.4,9.8);occ(grpA,-5.7,3.9,0,.6,1.4,9.8);occ(grpB,5.7,4.4,0,.6,1.4,9.8);occ(grpB,-5.7,4.4,0,.6,1.4,9.8);   // 前后防撞条
 for(const M of[modsA,modsB])for(const k in M){occ(M[k].steer,0,.75,0,1.5,1.5,.9);occ(M[k].steer,0,.6,0,.9,1.2,.8)}   // 四个舵轮（车轮 + 转向叉），随转向和悬挂运动
 
+const _dp=[];   // dynB 元素复用，避免每帧分配
+function dynUpdate(){   // 把落地/在输送线上的箱子（轴对齐）和吸盘吸着的箱子（取外接轴对齐盒）交给射线求交
+  let k=0;const put=(x,y,z,a,b,c)=>{const e=_dp[k]||(_dp[k]=[0,0,0,0,0,0]);e[0]=x;e[1]=y;e[2]=z;e[3]=a;e[4]=b;e[5]=c;dynB[k++]=e};
+  for(const b of freeBoxes)put(b.pos.x,b.pos.y,b.pos.z,b.hs[0],b.hs[1],b.hs[2]);
+  if(held.obj){const m=held.obj.mesh.matrix.elements,hy=held.obj.mesh.userData.hy,A=Math.abs;
+    put(m[12],m[13],m[14],A(m[0])*2.925+A(m[4])*hy+A(m[8])*1.9,A(m[1])*2.925+A(m[5])*hy+A(m[9])*1.9,A(m[2])*2.925+A(m[6])*hy+A(m[10])*1.9)}
+  dynB.length=k;
+}
 function occUpdate(){
   for(const b of OCC){
     let v=true;for(let p=b.o;p;p=p.parent)if(!p.visible){v=false;break}
@@ -716,6 +729,10 @@ function shade(x,y,z,dx,dy,dz){
     nx=hAx===0?hSg:0;ny=hAx===1?hSg:0;nz=hAx===2?hSg:0;
     if(hAx===1&&hSg>0){const f=.86+.14*hash2(Math.floor((z+11.75)/2.9),3);r=154*f;g=116*f;b=72*f}
     else{const col=env==='gp'?[181,64,42]:[45,91,134],f=.88+.12*Math.sin((hAx===0?z:x)*2.067),m=hAx===1?1.15:1;r=col[0]*f*m;g=col[1]*f*m;b=col[2]*f*m}
+  }else if(hK===5){
+    nx=hAx===0?hSg:0;ny=hAx===1?hSg:0;nz=hAx===2?hSg:0;
+    if(hAx===1&&hSg>0&&y<fy+.5){const f=.86+.14*hash2(Math.floor((z+11.75)/2.9),3);r=154*f;g=116*f;b=72*f}   // 地板
+    else{const col=env==='gp'?[181,64,42]:[45,91,134],f=.88+.12*Math.sin((hAx===0?z:x)*2.067);r=col[0]*f;g=col[1]*f;b=col[2]*f}
   }else if(hK===2){
     nx=hAx===0?hSg:0;ny=hAx===1?hSg:0;nz=hAx===2?hSg:0;
     if(env==='open'){r=148;g=163;b=184}
@@ -1198,7 +1215,7 @@ function convStep(dt){
 const ENVN={open:'空旷场地：方块/圆柱障碍物 + 12 m 围墙',gp:'标柜 20GP：内部 5.898×2.352×2.393 m，门洞 2.340×2.280 m；含月台+登车桥',hq:'高柜 20HQ：内部 5.898×2.352×2.698 m，门洞 2.340×2.585 m；含月台+登车桥'};
 function setEnv(k){
   resetCargo();envK=k;grid.visible=k==='open';document.getElementById('slr').style.display=k==='open'?'none':'flex';applySlope(slopeDeg);for(const n in envG)envG[n].visible=n===k;
-  bx.length=0;cy2.length=0;ENV[k].bx.forEach(b=>bx.push(b));ENV[k].cy.forEach(c=>cy2.push(c));room=ENV[k].room;
+  bx.length=0;wl.length=0;cy2.length=0;ENV[k].wl.forEach(b=>wl.push(b));ENV[k].bx.forEach(b=>bx.push(b));ENV[k].cy.forEach(c=>cy2.push(c));room=ENV[k].room;
   pos.set(k==='open'?0:11,0,0);yaw=0;cur[0]=cur[1]=cur[2]=0;cmd=[0,0,0];
   document.querySelectorAll('#btns button').forEach(x=>x.classList.toggle('on',x.dataset.c==='0,0,0'));
   pPos.fill(-1000);wI=0;pGeo.attributes.position.updateRange.count=-1;pGeo.attributes.position.needsUpdate=true;
@@ -1351,6 +1368,7 @@ setEnv('gp');setChassis('B');
   robot.updateMatrixWorld(true);tip.getWorldPosition(tv);AB.worldToLocal(tv);
   perfT+=dt;radarT+=dt;logicT+=dt;if(perfT>=.10){perfT=0;analyze()}
   setT(tipEl,`末端(相对底座) x ${(tv.x*10*ASC).toFixed(0)} y ${(tv.y*10*ASC).toFixed(0)} z ${(-tv.z*10*ASC).toFixed(0)} cm  吸嘴 ${zt.reduce((a,b)=>a+b,0)}/50 开`);
+  dynUpdate();
   const _r0=performance.now();if(radarT>=.05){const dtr=radarT;radarT=0;radarStep(dtr)}
   const _r1=performance.now();camStep(dt);
   const _r2=performance.now();if(logicT>=1/30){const dtl=logicT;logicT=0;stackStep(dtl);graspStep(dtl);convStep(dtl)}
