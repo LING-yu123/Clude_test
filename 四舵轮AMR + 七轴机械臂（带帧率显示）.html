@@ -314,9 +314,9 @@ let camAct=camM,liftC=0;   // 当前用于 RGB-D 仿真的相机；升降当前�
 
 let ARMK=7;   // 当前机械臂：7 = 七轴（J2–J4 平行冗余臂），6 = 六轴 FANUC M-20iD/35
 const OFF=[0,-90,90,60,0,30,0];   // 零位偏置（度）：显示角0°时的实际关节角
-const JN=[['J1 底座回转',-180,180],['J2 肩部俯仰',-30,180],['J3 肘部俯仰',-200,60],['J4 前臂俯仰',-200,80],['J5 前臂滚转',-170,170],['J6 腕部俯仰',-150,90],['J7 腕部滚转',-180,180]];
+const JN=[['J1 底座回转',-360,360],['J2 肩部俯仰',-30,180],['J3 肘部俯仰',-200,60],['J4 前臂俯仰',-200,80],['J5 前臂滚转',-170,170],['J6 腕部俯仰',-150,90],['J7 腕部滚转',-360,360]];
 const JN7=JN.map(r=>r.slice());
-const JN6=[['J1 底座回转',-170,170],['J2 大臂俯仰',-100,135],['J3 肘部俯仰',-180,70],['（锁定）',0,0],['J4 前臂滚转',-180,180],['J5 腕部俯仰',-125,125],['J6 法兰滚转',-360,360]];
+const JN6=[['J1 底座回转',-360,360],['J2 大臂俯仰',-100,135],['J3 肘部俯仰',-180,70],['（锁定）',0,0],['J4 前臂滚转',-180,180],['J5 腕部俯仰',-125,125],['J6 法兰滚转',-360,360]];
 const PRE={'零位':[0,0,0,0,0,0,0,0,0],'收纳':[0,20,50,-130,0,30,0,0,0],'准备':[0,125,-45,-90,0,10,0,0,0],'前伸':[0,155,-70,-60,0,-25,0,0,0],'举高':[0,100,-70,-50,0,-70,90,1,0],'侧向':[90,140,-40,-80,0,-20,0,0,0],'吸取':[0,135,-40,-80,0,-15,0,1,50]};
 const PRE7=Object.assign({},PRE),PRE6={'零位':[0,0,0,0,0,0,0,0,0],'收纳':[0,20,60,0,0,-80,0,0,0],'准备':[0,45,-15,0,0,-30,0,0,0],'前伸':[0,70,-60,0,0,-10,0,0,0],'举高':[0,20,-80,0,0,-30,90,1,0],'侧向':[90,60,-40,0,0,-20,0,0,0],'吸取':[0,60,-45,0,0,-15,0,1,50]};
 let qt=PRE['零位'].slice(),qc=qt.slice(),demo=false,dT=99,dI=0;
@@ -1614,6 +1614,15 @@ function ldTry(cd,force){   // 在当前车位规划：放置位 → 搬运路�
   const pl2=cr.pl2||pl,pc=pickCfgs(pl2,cr);if(!pc)return null;
   return{pl:pl2,cr,pc,front:apInfo.pm==='front'};
 }
+function ldAlign(r,from){   // J1 / J7 的等效角平移：J1 可转 ±360°，把整套 放置位/搬运路径/取箱位 平移 ±360°，使取箱位离当前 J1 最近（左右两侧交替时不用转回整圈）；J7 同理（顶吸时吸盘板转 180° 也等效）
+  const allQ=[r.pl.q1,r.pl.q2,r.pl.q3,...r.cr.path,r.pc.qh,r.pc.qg];let sh0=0,sh6=0;
+  const best=(idx,steps)=>{let bs=0,bd=Math.abs(r.pc.qg[idx]-from[idx]);
+    for(const d of steps){if(allQ.every(q=>q[idx]+d>=JN[idx][1]&&q[idx]+d<=JN[idx][2])&&Math.abs(r.pc.qg[idx]+d-from[idx])<bd-1){bd=Math.abs(r.pc.qg[idx]+d-from[idx]);bs=d}}
+    return bs};
+  sh0=best(0,[-360,360]);sh6=best(6,apInfo.pm==='top'?[-360,-180,180,360]:[-360,360]);
+  if(!sh0&&!sh6)return r;const g=q=>{const c=q.slice();c[0]+=sh0;c[6]+=sh6;return c};
+  return{...r,pl:{...r.pl,q1:g(r.pl.q1),q2:g(r.pl.q2),q3:g(r.pl.q3)},cr:{...r.cr,path:r.cr.path.map(g)},pc:{...r.pc,qg:g(r.pc.qg),qh:g(r.pc.qh)}};
+}
 function ldApproach(pc,from,carryEnd){   // 去取箱位的关节航点：从上一箱的搬运路径末端出发，直接一条轨迹贴到箱面（不再先停在“接近位”）；换侧时先收拢转身；不是从搬运路径出来的（首次）才需要接近位
   const fold=j=>{const q=PRE['收纳'].slice(0,7);q[0]=j;return q},out=[];
   if(Math.abs(pc.qg[0]-from[0])>150)out.push(fold(from[0]),fold(pc.qg[0]));   // 车尾取箱位在左右两侧（J1 各转到 ±160° 左右）：换侧时先在车尾把臂收拢，原地转过去再展开，不让展开的臂扫过车厢
@@ -1642,7 +1651,7 @@ function loadStep(dt){
       if(pk&&ldInfo.tries<3){ldInfo.tries++;ldInfo.park=pk;ldS=2;say(`调整车位（前后 ${((pk.x-pos.x)*10).toFixed(0)} cm，左右 ${((pk.z-pos.z)*10).toFixed(0)} cm）…`);return}
       fail(`第 ${cd.sl+1} 面第 ${cd.l+1} 层第 ${cd.j+1} 列机械臂放不进去，已停止`);return;
     }
-    Object.assign(ldInfo,r);
+    r=ldAlign(r,qc.slice(0,7));Object.assign(ldInfo,r);
     const carryEnd=ldAtEnd,from=qc.slice(0,7),ap=ldApproach(r.pc,from,carryEnd);ldAtEnd=false;
     if(ap.length>1&&Math.abs(r.pc.qg[0]-from[0])>150){qs=0;sls.value=0}else if(r.front){qs=0;sls.value=0}else{qs=100;sls.value=100}
     ldSetTz(r.pc);SKEY_ZONES(1);setVia(ap);ldS=5;say('去车尾输送线取箱…');
@@ -1665,8 +1674,8 @@ function loadStep(dt){
     if(ldT>.25){const {pl,cr}=ldInfo;if(ldInfo.front){qs=0;sls.value=0}
       const retreat=[pl.q1,...cr.path],nxt=document.getElementById('ldloop').checked?nextSlot(E):null;
       if(nxt){   // 先在当前车位试着规划下一箱：够得着就把“退回车尾 → 贴箱”并成一条连续轨迹（中途不停）
-        const force=nxt.l<5?'top':'front',r=ldTry(nxt,force);
-        if(r){const ap=ldApproach(r.pc,cr.path[cr.path.length-1],true);
+        const force=nxt.l<5?'top':'front';let r=ldTry(nxt,force);
+        if(r){r=ldAlign(r,cr.path[cr.path.length-1]);const ap=ldApproach(r.pc,cr.path[cr.path.length-1],true);
           ldInfo={cd:nxt,tries:0,fails:0,force,...r};
           if(r.front||Math.abs(r.pc.qg[0]-cr.path[cr.path.length-1][0])>150){qs=0;sls.value=0}else{qs=100;sls.value=100}
           ldSetTz(r.pc);SKEY_ZONES(1);setVia([...retreat,...ap]);ldS=5;say(`直接取下一箱（第 ${nxt.sl+1} 面第 ${nxt.l+1} 层第 ${nxt.j+1} 列）…`);return}}
