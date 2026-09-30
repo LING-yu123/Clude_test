@@ -145,7 +145,7 @@ function mkLidar(x,y,z){
   cyl(.27,.3,.06,alu,0,.27,0,lidar);                                                    // 顶盖
   lidar.userData.on=true;LIDARS.push(lidar);return lidar;
 }
-const lidar=mkLidar(4.6,7.8,0),lidar2=mkLidar(-4.6,7.8,-3.9),lidar3=mkLidar(-4.6,7.8,3.9);
+const lidar=mkLidar(4.6,7.8,0),lidar2=mkLidar(-3.0,7.8,-4.0),lidar3=mkLidar(-3.0,7.8,4.0);   // 雷达 2/3 避开急停按钮（-5.0, -3.5）
 
 // —— 舵轮模块：整体放大 KS 倍，轮径约 25 cm ——
 const KS=1.7,R0=.75,R=R0*KS;
@@ -1267,7 +1267,7 @@ addEventListener('resize',resize);resize();
 
 // —— 雷达位姿控制：三台雷达各自独立。位置（cm，相对车体中心）+ 姿态（度，欧拉角 偏航 Y → 俯仰 Z → 横滚 X） ——
 (function(){
-  const DEFS=[[46,78,0,0,0,0],[-46,78,-39,0,0,0],[-46,78,39,0,0,0]],D=Math.PI/180,box=document.getElementById('lps'),ins=[],lbs=[],tabs=document.getElementById('lpt'),en=document.getElementById('lpe');
+  const DEFS=[[46,78,0,0,0,0],[-30,78,-40,0,0,0],[-30,78,40,0,0,0]],D=Math.PI/180,box=document.getElementById('lps'),ins=[],lbs=[],tabs=document.getElementById('lpt'),en=document.getElementById('lpe');
   const vals=DEFS.map(d=>d.slice());let cur=0;
   const defs=[['前后 x',-200,200,1,'cm'],['高度 y',0,250,1,'cm'],['左右 z',-150,150,1,'cm'],['偏航',-180,180,1,'°'],['俯仰',-180,180,1,'°'],['横滚',-180,180,1,'°']];
   LIDARS.forEach(l=>l.rotation.order='YZX');
@@ -1373,13 +1373,13 @@ setEnv('gp');setChassis('B');
   robot.updateMatrixWorld(true);tip.getWorldPosition(tv);AB.worldToLocal(tv);
   perfT+=dt;radarT+=dt;logicT+=dt;if(perfT>=.10){perfT=0;analyze()}
   setT(tipEl,`末端(相对底座) x ${(tv.x*10*ASC).toFixed(0)} y ${(tv.y*10*ASC).toFixed(0)} z ${(-tv.z*10*ASC).toFixed(0)} cm  吸嘴 ${zt.reduce((a,b)=>a+b,0)}/50 开`);
+  // 已吸附的箱子每帧跟随吸盘（graspStep 降频后，避免箱子相对吸盘抖动）；必须在雷达/相机求交之前更新
+  if(held.obj){held.obj.mesh.matrix.copy(j7.matrixWorld).multiply(held.obj.rel);held.obj.mesh.matrixWorldNeedsUpdate=true}
   dynUpdate();
   const _r0=performance.now();if(radarT>=.05){const dtr=radarT;radarT=0;radarStep(dtr)}
   const _r1=performance.now();camStep(dt);
   const _r2=performance.now();if(logicT>=1/30){const dtl=logicT;logicT=0;stackStep(dtl);graspStep(dtl);convStep(dtl)}
   const _r3=performance.now();PF.radar+=_r1-_r0;PF.cam+=_r2-_r1;PF.logic+=_r3-_r2;
-  // 已吸附的箱子每帧跟随吸盘（graspStep 降频后，避免箱子相对吸盘抖动）
-  if(held.obj){held.obj.mesh.matrix.copy(j7.matrixWorld).multiply(held.obj.rel);held.obj.mesh.matrixWorldNeedsUpdate=true}
   cd=Math.min(300,Math.max(6,cd));if(fl.checked)ctr.set(pos.x,pos.y+5,pos.z);
   camera.position.set(ctr.x+cd*Math.cos(cp)*Math.sin(cy),ctr.y+cd*Math.sin(cp),ctr.z+cd*Math.cos(cp)*Math.cos(cy));
   camera.lookAt(ctr);
