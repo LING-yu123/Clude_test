@@ -268,8 +268,8 @@ box(1.5,.1,2.9,dark,0,.4,0,slide);
 [-.72,.72].forEach(k=>box(.06,.12,2.9,alu,k,.48,0,slide));[-1.42,1.42].forEach(k=>box(1.5,.12,.06,alu,0,.48,k,slide));
 // 底托：平板，位于吸盘下方，与吸盘板反向运动（独立于 slide）
 const tray=new THREE.Group();tray.position.y=.5;j7.add(tray);
-box(.06,1.5,2.9,alu,.81,.75,0,tray);
-box(.4,.3,1.3,dark,.68,.15,0,tray);
+box(.06,1.5,2.9,alu,1.0,.75,0,tray);   // 底托平板：位于箱底之下（箱半高 0.95 局部），原来在 0.81 会戳进箱子
+box(.7,.3,1.3,dark,.65,.15,0,tray);
 const cupGeo=new THREE.LatheGeometry([[.14,0],[.15,.1],[.22,.16],[.2,.26],[.3,.32],[.28,.42],[.4,.5],[.42,.53],[.34,.53],[.22,.4]].map(a=>new THREE.Vector2(a[0],a[1])),24);
 const NC=50,cups=[];
 for(let r=0;r<5;r++)for(let c=0;c<10;c++){   // 5×10 = 50 个吸嘴，可逐个独立控制
@@ -661,7 +661,7 @@ occ(j2,0,0,0,1.4,1.4,1.25);occ(j2,0,L1/2,0,.85,L1,1.0);                       //
 occ(j3,0,0,0,1.2,1.2,1.1);occ(j3,0,L2/2,0,.72,L2,.85);                         // J3 关节、小臂
 occ(j4,0,0,0,1.04,1.04,1.0);occ(j4,0,L3/2,0,.92,L3,.92);                         // J4 关节、前臂
 occ(j5,0,.175,0,.92,.35,.92);occ(j6,0,0,0,.88,.88,.9);occ(j7,0,.15,0,.76,.3,.76);occ(j7,0,.5,0,1.1,.3,1.1);   // 腕部
-occ(slide,0,.4,0,1.5,.1,2.9);occ(tray,.81,.75,0,.06,1.5,2.9);occ(tray,.68,.15,0,.4,.3,1.3);                     // 吸盘板、底托
+occ(slide,0,.4,0,1.5,.1,2.9);occ(tray,1.0,.75,0,.06,1.5,2.9);occ(tray,.65,.15,0,.7,.3,1.3);                     // 吸盘板、底托
 occ(mastG,0,PH/2,0,.3,PH,.3);occ(camU,0,0,0,.4,.205,.475);occ(camM,0,0,0,.4,.205,.475);occ(camL,0,0,0,.4,.205,.475);   // 立柱、三台相机
 occ(liftCar,0,0,0,.3,.5,.34);occ(liftRail,0,0,0,.12,RAIL_L,.12);occ(grpA,5.7,3.9,0,.6,1.4,9.8);occ(grpA,-5.7,3.9,0,.6,1.4,9.8);occ(grpB,5.7,4.4,0,.6,1.4,9.8);occ(grpB,-5.7,4.4,0,.6,1.4,9.8);   // 前后防撞条
 OCC.forEach(b=>{if([j1,j2,j3,j4,j5,j6].includes(b.o)||(b.o===j7&&b.cy===.15))b.arm=7});   // 只属于七轴臂的部件
@@ -1601,7 +1601,7 @@ function pickCfgs(pl,cr){   // 车尾输送线止挡处的抓取位（吸盘贴�
   const cB=robot.localToWorld(new THREE.Vector3(REAR_X-3.6,BELT_TOP,0)),fz=S.z-dir*LZ();let out=null;
   RMIN_WC=1.5;
   if(front){
-    poseYaw(dir*Math.PI);const fx=cB.x+2.925,tG=[fx,BELT_TOP+hy,fz],g=nearSolve(tG,0,last,0),h=g&&nearSolve([fx+2.5,BELT_TOP+hy+.6,fz],0,g.q,0);
+    poseYaw(dir*Math.PI);const fx=cB.x+2.925,tG=[fx,BELT_TOP+hy,fz],g=nearSolve(tG,100,last,0),h=g&&nearSolve([fx+2.5,BELT_TOP+hy+.6,fz],100,g.q,0);   // 前吸取箱：吸盘板伸出（底托缩在后面）贴箱，吸住并抬起后再收回吸盘板、让底托伸到箱底下
     if(g&&h)out={qg:g.q,qh:h.q,tipG:tG};
   }else{
     const fx=cB.x,tG=[fx,BELT_TOP+2*hy+.05,fz],tH=[fx,BELT_TOP+2*hy+3.5,fz];
@@ -1658,16 +1658,17 @@ function loadStep(dt){
     }
     r=ldAlign(r,qc.slice(0,7));Object.assign(ldInfo,r);
     const carryEnd=ldAtEnd,from=qc.slice(0,7),ap=ldApproach(r.pc,from,carryEnd);ldAtEnd=false;
-    if(ap.length>1&&Math.abs(r.pc.qg[0]-from[0])>150){qs=0;sls.value=0}else if(r.front){qs=0;sls.value=0}else{qs=100;sls.value=100}
-    ldSetTz(r.pc);SKEY_ZONES(1);setVia(ap);ldS=5;say('去车尾输送线取箱…');
+    if(ap.length>1&&Math.abs(r.pc.qg[0]-from[0])>150){qs=0;sls.value=0}else{qs=100;sls.value=100}
+    ldSetTz(r.pc);setVia(ap);ldS=5;say('去车尾输送线取箱…');
   }else if(ldS===5){   // 机械臂一次到位贴箱；箱子到止挡并对准后才会被吸住（吸嘴一直开着，接触即吸）
-    if(!ldInfo.front&&qs<100&&Math.abs(ldInfo.pc.qg[0]-qc[0])<25){qs=100;sls.value=100}   // 换侧收拢转身时吸盘板是缩回的；转到位后再伸出
-    if(conv()&&ldT>.1){ldS=6;say('等待吸附…')}
+    if(qs<100&&Math.abs(ldInfo.pc.qg[0]-qc[0])<25){qs=100;sls.value=100}   // 换侧收拢转身时吸盘板是缩回的；转到位后再伸出
+    if(conv()&&ldT>.1){SKEY_ZONES(1);ldS=6;say('到位，开启真空吸附…')}   // 到位后才开真空：路上就开的话，吸嘴刚碰到箱面上沿就会吸住，箱子挂得偏低
   }else if(ldS===6){
     if(held.obj){const {pl,cr}=ldInfo;setVia([...cr.path].reverse().concat([pl.q3]));ldS=7;say('抽离输送线，沿路径转向车厢内部…')}
     else if(ldT>2.5){if(!freeBoxes.some(b=>b.state==='lstop')){ldT=0;ldMsg='等待输送线送来箱子…';return}
       if(++ldInfo.fails>=3){fail('取箱失败（未吸附）');return}ldSetTz(ldInfo.pc);setJ(ldInfo.pc.qh);setVia([ldInfo.pc.qh,ldInfo.pc.qg]);ldS=5;say('重试取箱…')}
   }else if(ldS===7){
+    if(ldInfo.front&&qs>0&&ldT>.5&&ldS===7&&!ldInfo.slideBack){qs=0;sls.value=0;ldInfo.slideBack=true}   // 前吸：先抬起离开输送带，再收回吸盘板让底托伸到箱底下
     if(conv()&&ldT>.1){if(ldInfo.front){qs=100;sls.value=100}ldS=8;say(ldInfo.front?'吸盘板前伸，把箱子送向空位…':'下探到空位…')}
   }else if(ldS===8){
     if(Math.abs(qsc-qs)<3&&ldT>.2){setJ(ldInfo.pl.q2);ldS=9}
@@ -1682,8 +1683,8 @@ function loadStep(dt){
         const force=nxt.l<5?'top':'front';let r=ldTry(nxt,force);
         if(r){r=ldAlign(r,cr.path[cr.path.length-1]);const ap=ldApproach(r.pc,cr.path[cr.path.length-1],true);
           ldInfo={cd:nxt,tries:0,fails:0,force,...r};
-          if(r.front||Math.abs(r.pc.qg[0]-cr.path[cr.path.length-1][0])>150){qs=0;sls.value=0}else{qs=100;sls.value=100}
-          ldSetTz(r.pc);SKEY_ZONES(1);setVia([...retreat,...ap]);ldS=5;say(`直接取下一箱（第 ${nxt.sl+1} 面第 ${nxt.l+1} 层第 ${nxt.j+1} 列）…`);return}}
+          if(Math.abs(r.pc.qg[0]-cr.path[cr.path.length-1][0])>150){qs=0;sls.value=0}else{qs=100;sls.value=100}
+          ldSetTz(r.pc);setVia([...retreat,...ap]);ldS=5;say(`直接取下一箱（第 ${nxt.sl+1} 面第 ${nxt.l+1} 层第 ${nxt.j+1} 列）…`);return}}
       setVia(retreat);ldAtEnd=true;ldS=11}   // 下一箱要换车位（或不连续装）：先退回车尾
   }else if(ldS===11){
     if(conv()&&ldT>.1){
