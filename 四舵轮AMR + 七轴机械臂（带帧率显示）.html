@@ -217,14 +217,14 @@ function swerveS(x,z){
 const modsB={FL:swerveS(4.0,-3.6),FR:swerveS(4.0,3.6),RL:swerveS(-4.0,-3.6),RR:swerveS(-4.0,3.6)};
 
 // —— 七轴机械臂（J2/J3/J4 相互平行） ——
-// 杆长（局部单位，AB 放大 ASC=2 倍）：世界长度 L1=7.0、L2=6.0、L3=5.0（共 18），加腕部 2.0，J2 轴→法兰面直线长 = 20（2 m）
-const L1=3.5,L2=3.0,L3=2.5;
+// 杆长（局部单位，AB 放大 ASC=2 倍）：世界长度 L1=8.0、L2=6.0、L3=7.0（共 21），加腕部，J2 轴→吸盘面伸直约 2.3 m
+const L1=4.0,L2=3.0,L3=3.5,Y2_7=.6;   // 经扫参优化（20GP/20HQ 整面卸货：少挪车、擦碰采样最少）：大臂 8 / 小臂 6 / 前臂 7（世界，dm），J2 离转台 0.6（原 3.5/3.0/2.5、0.75）
 const ASC=2;
 const AB=new THREE.Group();AB.position.set(1.6,7.5,0);AB.scale.setScalar(ASC);robot.add(AB);
 cyl(.85,.95,.18,dark,0,.09,0,AB);
 const j1=new THREE.Group();j1.position.y=.18;AB.add(j1);
 cyl(.7,.7,.5,shell,0,.25,0,j1);cyl(.72,.72,.08,acc,0,.5,0,j1);
-const j2=new THREE.Group();j2.position.y=.75;j1.add(j2);
+const j2=new THREE.Group();j2.position.y=Y2_7;j1.add(j2);
 cyl(.7,.7,1.25,dark,0,0,0,j2,true);cyl(.34,.34,1.33,acc,0,0,0,j2,true);
 box(.85,L1,1.0,shell,0,L1/2,0,j2);
 const j3=new THREE.Group();j3.position.y=L1;j2.add(j3);
@@ -1140,7 +1140,7 @@ function candList(E){   // 可取的箱子：暴露、静止、侧向够得着�
 function setAxes(back){if(back){TX=[0,-1,0];TY=[-1,0,0];TZ=[0,0,-1]}else{TX=[0,-1,0];TY=[1,0,0];TZ=[0,0,1]}}
 // ======== 解析逆运动学：腕心位置 → J1 方位角 + 平面三连杆（J2–J4，冗余量为末杆姿态 θ3）→ 球形腕 J5–J7（YZY 分解） ========
 // 比数值迭代可靠：吸盘轴与目标轴严格对准，不会出现“歪斜”的假收敛。
-const LWL=[7,6,5.7],D2R=Math.PI/180,R2D=180/Math.PI,wtipD=slide=>(j7.position.y+.5+.6*slide/100+.65)*ASC;   // 连杆世界长度；腕心到吸盘面距离
+const LWL=[L1*2,L2*2,L3*2+.7],D2R=Math.PI/180,R2D=180/Math.PI,wtipD=slide=>(j7.position.y+.5+.6*slide/100+.65)*ASC;   // 连杆世界长度；腕心到吸盘面距离
 function wristSolve(qa){   // 已知 J1–J4，求使姿态 = (TX,TY,TZ) 的 J5–J7（两组解）
   fkPose([...qa,0,0,0],100);
   const e=j4.matrixWorld.elements,nn=(a,b,c)=>{const l=Math.hypot(a,b,c);return[a/l,b/l,c/l]},cc=[nn(e[0],e[1],e[2]),nn(e[4],e[5],e[6]),nn(e[8],e[9],e[10])],Rt=[TX,TY,TZ];
@@ -1236,10 +1236,10 @@ function useArm(k,quiet){
   if(apS){apS=0;cmd=[0,0,0];apReturn=null}
   if(held.obj)releaseHeld();
   ARMK=k;const six=k===6;
-  j2.position.y=six?Y2_6:.75;j2.position.x=six?A1_6:0;j3.position.y=six?L6[0]:L1;j4.position.y=six?L6[1]:L2;j5.position.y=six?0:L3;j6.position.y=six?0:.35;j7.position.y=six?.5:.3;
+  j2.position.y=six?Y2_6:Y2_7;j2.position.x=six?A1_6:0;j3.position.y=six?L6[0]:L1;j4.position.y=six?L6[1]:L2;j5.position.y=six?0:L3;j6.position.y=six?0:.35;j7.position.y=six?.5:.3;
   OFF.splice(0,7,...(six?[0,0,90,0,0,0,0]:[0,-90,90,60,0,30,0]));
   JN.splice(0,7,...(six?JN6:JN7).map(r=>r.slice()));
-  LWL.splice(0,3,...(six?[L6[0]*2,L6[1]*2,0]:[7,6,5.7]));
+  LWL.splice(0,3,...(six?[L6[0]*2,L6[1]*2,0]:[L1*2,L2*2,L3*2+.7]));
   V7.forEach(m=>m.visible=!six);V6.forEach(m=>m.visible=six);
   ARMB=ARMB_ALL.filter(b=>!b.arm||b.arm===ARMK);
   Object.keys(PRE).forEach(x=>delete PRE[x]);Object.assign(PRE,six?PRE6:PRE7);
