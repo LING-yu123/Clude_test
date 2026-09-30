@@ -242,9 +242,9 @@ cyl(.38,.38,.3,shell,0,.15,0,j7);cyl(.4,.4,.06,acc,0,.32,0,j7);
 const JGRP=[j1,j2,j3,j4,j5,j6,j7],meshesOf=()=>JGRP.flatMap(g=>g.children.filter(c=>c.isMesh));
 const V7=meshesOf();   // 七轴臂本体网格（切换到六轴时隐藏）
 // —— 六轴机械臂：FANUC M-20iD/35（负载 35 kg，臂展 1831 mm）。本体尺寸（世界）：J2 轴离底面 525 mm、大臂 780 mm、小臂 850 mm、腕→法兰 100 mm。
-// 简化：忽略 150 mm 肘部偏置；J4 关节槽在此模型里锁死，用同一套 J1–J7 骨架（J3/J4 之间的“前臂俯仰”固定为 0）。
+// 简化：忽略肘部 150 mm 偏置，改用 101 mm 肩部前移凑足 1831 mm 臂展；J4 关节槽在此模型里锁死，用同一套 J1–J7 骨架（J3/J4 之间的“前臂俯仰”固定为 0）。
 const fan=M(0xf2c200,.25,.5),fanB=M(0x1f2328,.5,.4);
-const L6=[3.9,4.25],Y2_6=2.445;   // 大臂、小臂长；J2 相对 J1 的高度（局部单位；世界 = ×2）
+const L6=[3.9,4.25],Y2_6=2.445,A1_6=.505;   // A1_6：J2 轴相对 J1 轴前移 101 mm，使总臂展（J1 轴到法兰面，工具水平）= 1831 mm   // 大臂、小臂长；J2 相对 J1 的高度（局部单位；世界 = ×2）
 cyl(.62,.72,Y2_6,fan,0,Y2_6/2,0,j1);cyl(.76,.76,.16,fanB,0,.08,0,j1);cyl(.66,.66,.06,acc,0,Y2_6-.03,0,j1);   // 回转座（J1 转台）
 cyl(.6,.6,1.5,fan,0,0,0,j2,true);cyl(.34,.34,1.62,fanB,0,0,0,j2,true);                                     // 肩部电机壳（J2）
 box(.8,L6[0],.9,fan,0,L6[0]/2,0,j2);                                                                    // 大臂
@@ -401,7 +401,7 @@ function analyze(){
 }
 const sb=document.getElementById('sgbtn');
 const SGP={7:[['腕奇异 (J6=-30°,J5=0°)',[0,125,-35,-70,0,-30,0,0,0]],['J5=90° (J5∥J7 但不奇异)',[0,125,-35,-70,90,-30,0,0,0]],['臂伸直 (腕心在线上)',[0,130,-90,-60,0,20,0,0,0]],['J2–J4共线 (不奇异)',[0,130,-90,-10,0,10,0,0,0]],['肩奇异 (腕心过J1轴)',[0,120,-130,-75.5,0,20,0,0,0]],['直立 (三者叠加)',[0,90,-90,-60,0,-30,0,0,0]]],
-  6:[['腕奇异 (J5=0°)',[0,45,-45,0,0,0,0,0,0]],['J5≠0° (不奇异)',[0,45,-45,0,0,-40,0,0,0]],['肘伸直 (J2∥J3)',[0,60,-90,0,0,-30,0,0,0]],['肩奇异 (腕心过J1轴)',[0,30,-147.3,0,0,0,0,0,0]],['直立 (肘+腕)',[0,0,-90,0,0,0,0,0,0]]]};
+  6:[['腕奇异 (J5=0°)',[0,45,-45,0,0,0,0,0,0]],['J5≠0° (不奇异)',[0,45,-45,0,0,-40,0,0,0]],['肘伸直 (J2∥J3)',[0,60,-90,0,0,-30,0,0,0]],['肩奇异 (腕心过J1轴)',[0,30,-155.3,0,0,0,0,0,0]],['直立 (肘+腕)',[0,0,-90,0,0,0,0,0,0]]]};
 function buildSg(){sb.innerHTML='';SGP[ARMK].forEach(([n,pz])=>{const b=document.createElement('button');b.textContent=n;b.onclick=()=>{demo=false;db.classList.remove('on');setPose(pz)};sb.appendChild(b)})}
 buildSg();
 if(innerWidth<700)document.querySelector('#sg details').removeAttribute('open');
@@ -1156,11 +1156,12 @@ function wristSolve(qa){   // 已知 J1–J4，求使姿态 = (TX,TY,TZ) 的 J5�
   return sols;
 }
 const TH3S=()=>ARMK===6?[0]:Array.from({length:101},(_,i)=>-200+4*i);   // 七轴：末杆姿态 θ3 冗余扫描；六轴无冗余
+const shoulderPos=S=>{j1.getWorldPosition(S);S.y+=j2.position.y*ASC;return S};   // J1 轴上与 J2 同高的点（六轴臂的 J2 相对 J1 轴有前向偏置，故不能直接用 J2 位置）
 const wrapD=v=>((v+180)%360+360)%360-180;
 let RMIN_WC=3;   // 腕心到 J1 轴的最小距离（接近肩奇异时 J1 方位不确定）；携带阶段为缩小回转半径可临时调小
 function anaSolve(tip,slide,th3,sg,flip){   // 给定末杆姿态 θ3、肘部分支 sg、J1 分支 flip（flip=1：J1 转到反方向、臂向后仰着够）；不可达返回 null
-  const wt=wtipD(slide),wc=[tip[0]-TY[0]*wt,tip[1]-TY[1]*wt,tip[2]-TY[2]*wt],S=new THREE.Vector3();j2.getWorldPosition(S);
-  const dx=wc[0]-S.x,dz=wc[2]-S.z,r0=Math.hypot(dx,dz),y=wc[1]-S.y,t=th3*D2R,phi=wrapD(Math.atan2(-dz,dx)*R2D-(flip?180:0)),r=flip?-r0:r0;
+  const wt=wtipD(slide),wc=[tip[0]-TY[0]*wt,tip[1]-TY[1]*wt,tip[2]-TY[2]*wt],S=shoulderPos(new THREE.Vector3());
+  const dx=wc[0]-S.x,dz=wc[2]-S.z,r0=Math.hypot(dx,dz),y=wc[1]-S.y,t=th3*D2R,phi=wrapD(Math.atan2(-dz,dx)*R2D-(flip?180:0)),r=(flip?-r0:r0)-j2.position.x*ASC;   // 减去 J2 相对 J1 轴的前向偏置
   if(r0<RMIN_WC||phi<JN[0][1]-.5||phi>JN[0][2]+.5)return null;   // 腕心离 J1 轴太近（接近肩奇异）时 J1 方位不确定，拒绝
   const Fr=r-LWL[2]*Math.sin(t),Fy=y-LWL[2]*Math.cos(t),dF=Math.hypot(Fr,Fy);
   if(dF>LWL[0]+LWL[1]-.05||dF<Math.abs(LWL[0]-LWL[1])+.05)return null;
@@ -1230,7 +1231,7 @@ function useArm(k,quiet){
   if(apS){apS=0;cmd=[0,0,0];apReturn=null}
   if(held.obj)releaseHeld();
   ARMK=k;const six=k===6;
-  j2.position.y=six?Y2_6:.75;j3.position.y=six?L6[0]:L1;j4.position.y=six?L6[1]:L2;j5.position.y=six?0:L3;j6.position.y=six?0:.35;j7.position.y=six?.5:.3;
+  j2.position.y=six?Y2_6:.75;j2.position.x=six?A1_6:0;j3.position.y=six?L6[0]:L1;j4.position.y=six?L6[1]:L2;j5.position.y=six?0:L3;j6.position.y=six?0:.35;j7.position.y=six?.5:.3;
   OFF.splice(0,7,...(six?[0,0,90,0,0,0,0]:[0,-90,90,60,0,30,0]));
   JN.splice(0,7,...(six?JN6:JN7).map(r=>r.slice()));
   LWL.splice(0,3,...(six?[L6[0]*2,L6[1]*2,0]:[7,6,5.7]));
@@ -1316,7 +1317,7 @@ function splineCfgs(list,q0,step=4){   // 复刻 startTraj 的样条，按“最
 function cfgsBad(cfgs,rel,st,hs,stH,lastSkip,slideV=100){let bad=0;cfgs.forEach((q,i)=>{if(armHits(q,slideV,rel,st,hs,lastSkip&&i===cfgs.length-1,stH))bad++});return bad}
 function planCarryTop(q0,P){   // 顶吸携带：先抬起，再沿 dir 方向一次转向车尾。箱子在世界系中朝向不变（长边始终沿 x）→ 转到侧向时横向只占箱宽的一半，不会撞侧壁。P={dir:±1 转向, Rc:回转半径, yh:携带高度}
   P=P||{dir:1,Rc:8,yh:null};
-  const E=ENV[envK],S=new THREE.Vector3();j2.getWorldPosition(S);
+  const E=ENV[envK],S=shoulderPos(new THREE.Vector3());
   const top=apInfo.c.y+E.hy,y0=top+(apInfo.pc||6),yh=P.yh==null?S.y+3:P.yh,Rc=P.Rc,dir=P.dir;
   const dz0=apInfo.c.z-S.z,psi0=Math.atan2(-dz0,apInfo.c.x-S.x),R0=Math.hypot(apInfo.c.x-S.x,dz0),sweep=dir*Math.PI-psi0;
   const at=f=>{const ps=psi0+sweep*f,r=Rc+(R0-Rc)*Math.max(0,1-f/.3),y=Math.max(yh,y0-(y0-yh)*Math.min(1,f/.35));return{tip:[S.x+r*Math.cos(ps),y,S.z-r*Math.sin(ps)]}};   // 抬起后边转边降到 yh（高层时不会超出臂展）
@@ -1334,7 +1335,7 @@ function planCarryTop(q0,P){   // 顶吸携带：先抬起，再沿 dir 方向�
   setAxes(false);return failed?null:path;
 }
 function carryFront(q0,P){   // 前吸携带：抽出 → 边转边收（半径收到 Rm）→ 沿 dir 方向一次转向车尾 → 落到输送线。P={dir:±1 转向, Rm:回转半径, yc:携带高度}
-  const E=ENV[envK],S=new THREE.Vector3();j2.getWorldPosition(S);
+  const E=ENV[envK],S=shoulderPos(new THREE.Vector3());
   const xr=apInfo.xf-6-SLIDE_T,dz0=apInfo.c.z-S.z,psi0=Math.atan2(-dz0,xr-S.x),R0=Math.hypot(xr-S.x,dz0);   // 抽出位吸盘面 xf-6，吸盘板后撤 SLIDE_T 之后在 xr   // 抽出位相对肩部的极坐标（方位角 ψ0、半径 R0）
   const yc=P.yc,Rm=Math.min(P.Rm,R0),dir=P.dir,cy=apInfo.c.y,sweep=dir*Math.PI-psi0;   // 转角：从 ψ0 到正后方（±π），J1 只朝一个方向转
   const cP=robot.localToWorld(new THREE.Vector3(REAR_X-3.6,BELT_TOP+E.hy+.3,0)),fx=cP.x+2.925,fz=S.z-dir*.3,Rend=Math.max(1,S.x-fx),yEnd=cP.y;   // 落点：车尾输送线起点（终点略偏向转向一侧：腕心方位角落在 ±180° 的同一侧）
@@ -1351,7 +1352,7 @@ function carryFront(q0,P){   // 前吸携带：抽出 → 边转边收（半径�
   setAxes(false);return failed?null:path;
 }
 function planCarryBest(pl,quick){   // 搜索无碰撞的携带路径：转向（往离侧壁远的一侧转）、回转半径、携带高度依次尝试；返回 {path,bad}，bad=碰撞采样数（0=无碰撞）
-  const E=ENV[envK],S=new THREE.Vector3();j2.getWorldPosition(S);
+  const E=ENV[envK],S=shoulderPos(new THREE.Vector3());
   const cd=apInfo.cd,c=apInfo.c,mode=apInfo.pm,key=cd.sl*6+cd.j;
   const stSkip=staticObbs({key,skip:true}),stRed=staticObbs({key,skip:false}),hs=[2.925,E.hy,1.9];
   const rel=heldRel(pl.q2,100,c);
@@ -1391,7 +1392,7 @@ function pickAccept(){   // 返回 chainSolve 用的碰撞检查：预抓取位 
   };
 }
 function planPick(){   // 依次规划：预抓取位 → 贴合位 → 抽出位；同一构型，任何一步够不着或会撞（货垛/侧壁/车顶/车体）就返回 null。apInfo.force：'top' 顶吸 / 'front' 前吸 / 空=按层（最上层前吸，其余顶吸）
-  const cd=apInfo.cd||{},E=ENV[envK],S=new THREE.Vector3();j2.getWorldPosition(S);
+  const cd=apInfo.cd||{},E=ENV[envK],S=shoulderPos(new THREE.Vector3());
   const md=apInfo.force||(cd.l<5?'top':'front');let tips,phi0,r=null,pc=6;
   if(md==='front'){
     const t=dx=>[apInfo.xf+dx,apInfo.c.y,apInfo.c.z];setAxes(false);tips=[t(-6),t(-.25),t(-6)];
