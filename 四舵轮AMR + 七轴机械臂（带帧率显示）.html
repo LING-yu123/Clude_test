@@ -1361,8 +1361,10 @@ function useArm(k,quiet,lift){
 document.querySelectorAll('#armK button').forEach(b=>b.onclick=()=>useArm(parseInt(b.dataset.k),false,b.dataset.k==='6L'));
 function setLift(h){qL=Math.max(0,Math.min(BLIFT_MAX,h));document.getElementById('lftS').value=Math.round(qL*10);document.getElementById('lftV').textContent=Math.round(qL*10)+' cm'}
 document.getElementById('lftS').oninput=e=>setLift(+e.target.value/10);
-const liftFor=cd=>LIFT?Math.max(0,Math.min(BLIFT_MAX,Math.round((cd.c.y-10)*.5*2)/2)):0;   // 按目标箱所在高度定升降量：底下两层不升，顶层升到最高
-const liftWait=cd=>{if(!LIFT)return false;setLift(liftFor(cd));return Math.abs(qLc-qL)>.02};   // 需要升降时返回 true：暂停本步，等底座到位后再规划
+let LIFT_Y0=10,LIFT_K=0,LIFT_OV=null;const LIFT_TRY=[3,6,1.5];   // 默认不升（实测升高会压缩车顶间隙）；规划失败时依次尝试升到 30/60/15 cm（LIFT_OV 为本箱的强制升降量）
+const liftNext=cd=>{if(!LIFT)return false;const n=(cd.lt||0);if(n>=LIFT_TRY.length)return false;cd.lt=n+1;LIFT_OV=LIFT_TRY[n];return true};
+const liftFor=cd=>LIFT_OV!=null?LIFT_OV:LIFT?Math.max(0,Math.min(BLIFT_MAX,Math.round((cd.c.y-LIFT_Y0)*LIFT_K*2)/2)):0;   // 按目标箱所在高度定升降量：底下两层不升，顶层升到最高
+const liftWait=cd=>{if(cd.lt==null)LIFT_OV=null;if(!LIFT)return false;setLift(liftFor(cd));return Math.abs(qLc-qL)>.02};   // 需要升降时返回 true：暂停本步，等底座到位后再规划
 function mkObb(){return{c:[0,0,0],a:[[1,0,0],[0,1,0],[0,0,1]],h:[0,0,0]}}
 function obbOfEntry(b,o,margin){   // 把 OCC 条目（部件局部盒）转成世界系有向盒
   const M=b.o.matrixWorld,e=M.elements,sc=M.getMaxScaleOnAxis();
@@ -1615,6 +1617,7 @@ function autoStep(dt){
       if(pk&&apInfo.tries<2){if(apReturn){setVia(apReturn);apReturn=null}apInfo.tries++;apInfo.park=pk;apS=2;say(`调整车位（前后 ${((pk.x-pos.x)*10).toFixed(0)} cm，左右 ${((pk.z-pos.z)*10).toFixed(0)} cm）…`);return}
       const nx=apInfo.cands[apInfo.ci+1];
       if(nx&&nx.sl===apInfo.cands[0].sl&&apInfo.ci<12){apInfo.ci++;apInfo.tries=0;apInfo.force=null;apInfo.picked=false;say('该箱够不着，先取本面本层的下一个…');return}
+      {const c1=apInfo.cands[apInfo.ci];if(liftNext(c1)){apInfo.tries=0;apInfo.force=null;apInfo.picked=false;return}}   // 升降方案：换个底座高度再试
       apMsg=`最外第 ${E.slices-apInfo.cands[0].sl} 面剩余的箱子机械臂够不着，已停止（不跳到下一面）`;apS=0;return;
     }
     if(!cr)cr=planCarryBest(pl,false);   // 换车位到达后重新规划搬运路径
@@ -1786,6 +1789,7 @@ function loadStep(dt){
       let pk=findParking(cd,ldInfo.force);
       if(!pk&&ldInfo.force==='top'){pk=findParking(cd,'front');if(pk)ldInfo.force='front'}
       if(pk&&ldInfo.tries<3){ldInfo.tries++;ldInfo.park=pk;ldS=2;say(`调整车位（前后 ${((pk.x-pos.x)*10).toFixed(0)} cm，左右 ${((pk.z-pos.z)*10).toFixed(0)} cm）…`);return}
+      if(liftNext(cd)){ldInfo.tries=0;ldInfo.force=cd.l<5?'top':'front';return}   // 升降方案：挪车也不行，再换一个底座高度重试
       fail(`第 ${cd.sl+1} 面第 ${cd.l+1} 层第 ${cd.j+1} 列机械臂放不进去，已停止`);return;
     }
     r=ldAlign(r,qc.slice(0,7));Object.assign(ldInfo,r);
@@ -1813,7 +1817,7 @@ function loadStep(dt){
   }else if(ldS===10){
     if(ldT>.25){const {pl,cr}=ldInfo;if(ldInfo.front){qs=0;sls.value=0}
       const retreat=[pl.q1,...cr.path],nxt=document.getElementById('ldloop').checked?nextSlot(E):null;
-      if(nxt){   // 先在当前车位试着规划下一箱：够得着就把“退回车尾 → 贴箱”并成一条连续轨迹（中途不停）
+      if(nxt&&!(LIFT&&(LIFT_OV!=null||liftFor(nxt)!==qL))){   // （升降方案：底座高度要变时不并轨，回到常规流程先升降）先在当前车位试着规划下一箱：够得着就把“退回车尾 → 贴箱”并成一条连续轨迹（中途不停）
         const force=nxt.l<5?'top':'front';let r=ldTry(nxt,force);
         if(r){r=ldAlign(r,cr.path[cr.path.length-1]);const ap=ldApproach(r.pc,cr.path[cr.path.length-1],true);
           ldInfo={cd:nxt,tries:0,fails:0,force,...r};
