@@ -80,6 +80,7 @@ button.lk.on{background:#dc2626;border-color:#dc2626;color:#fff}
   <details open class="sec"><summary>场景与速度</summary>
   <div class="g" id="envb" style="grid-template-columns:repeat(3,1fr);margin-bottom:4px"><button data-e="open">空旷场地</button><button data-e="gp">标柜 20GP</button><button data-e="hq">高柜 20HQ</button></div>
   <div id="envn" style="font-size:11px;opacity:.7;margin-bottom:6px"></div>
+  <div class="g" id="beltb" style="grid-template-columns:1fr 1fr;margin-bottom:6px"><button data-b="rear" class="on" style="font-size:12px;padding:6px 2px">输送带：车尾<br>（机器人正后方）</button><button data-b="side" style="font-size:12px;padding:6px 2px">输送带：右侧<br>（紧挨机器人右边）</button></div>
   <label id="slr" style="margin-bottom:6px"><span style="width:88px">登车桥坡度</span><input id="dkS" type="range" min="0" max="10" step="0.5" value="0"><b id="dkV" style="width:34px;text-align:right;font-weight:500">0°</b></label>
   <label>速度<input id="sp" type="range" min="0.5" max="10" step="0.1" value="4"></label>
   <div style="display:flex;gap:8px;align-items:center;margin-top:6px"><label style="flex:1"><input type="checkbox" id="fl" checked>视角跟随车体</label><button id="vov" style="padding:4px 10px">全景</button></div>
@@ -326,7 +327,7 @@ let ARMK=7;   // 当前机械臂：7 = 七轴（J2–J4 平行冗余臂），6 =
 const OFF=[0,-90,90,60,0,30,0];   // 零位偏置（度）：显示角0°时的实际关节角
 const JN=[['J1 底座回转',-360,360],['J2 肩部俯仰',-30,180],['J3 肘部俯仰',-200,60],['J4 前臂俯仰',-200,80],['J5 前臂滚转',-170,170],['J6 腕部俯仰',-150,90],['J7 腕部滚转',-360,360]];
 const JN7=JN.map(r=>r.slice());
-const JN6=[['J1 底座回转',-360,360],['J2 大臂俯仰',-100,135],['J3 肘部俯仰',-180,70],['（锁定）',0,0],['J4 前臂滚转',-180,180],['J5 腕部俯仰',-125,125],['J6 法兰滚转',-360,360]];
+const JN6=[['J1 底座回转',-360,360],['J2 大臂俯仰',-100,135],['J3 肘部俯仰',-180,85],['（锁定）',0,0],['J4 前臂滚转',-180,180],['J5 腕部俯仰',-125,125],['J6 法兰滚转',-360,360]];
 const PRE={'零位':[0,0,0,0,0,0,0,0,0],'收纳':[0,20,50,-130,0,30,0,0,0],'准备':[0,125,-45,-90,0,10,0,0,0],'前伸':[0,155,-70,-60,0,-25,0,0,0],'举高':[0,100,-70,-50,0,-70,90,1,0],'侧向':[90,140,-40,-80,0,-20,0,0,0],'吸取':[0,135,-40,-80,0,-15,0,1,50]};
 const PRE7=Object.assign({},PRE),PRE6={'零位':[0,0,0,0,0,0,0,0,0],'收纳':[0,20,60,0,0,-80,0,0,0],'准备':[0,45,-15,0,0,-30,0,0,0],'前伸':[0,70,-60,0,0,-10,0,0,0],'举高':[0,20,-80,0,0,-30,90,1,0],'侧向':[90,60,-40,0,0,-20,0,0,0],'吸取':[0,60,-45,0,0,-15,0,1,50]};
 let qt=PRE['零位'].slice(),qc=qt.slice(),demo=false,dT=99,dI=0;
@@ -465,7 +466,10 @@ function corrTex(rep){   // 波纹钢板
 }
 // ======== 输送线常量与皮带贴图 ========
 let SPD=1.5;   // 装卸速度倍率（界面滑块）：机械臂关节速度、吸盘板、真空、流程等待、输送线线速（最多 ×2）、自动挪车、送箱节拍
-const BELT_TOP=7.5,BELT_W=8.4,REAR_X=-6,DOCK_START=-8.5,DOCK_END=-34,DOCKZ=0;let BELT_V=8*Math.min(SPD,2);   // 皮带面高 0.75 m；基础线速 0.8 m/s
+let BSIDE=false;   // 输送带位置：false=车尾（机器人正后方），true=右侧（紧挨机器人右边，沿车厢长度方向）
+const BELT_TOP=7.5,BELT_W=8.4,REAR_X=-6,DOCK_START=-8.5,DOCK_END=-34,DOCKZ=0;let BELT_V=8*Math.min(SPD,2);
+const BELTC=()=>BSIDE?{cx:5.0,cz:9.4,px:1.6,pz:9.4,w:6.4}:{cx:REAR_X,cz:0,px:REAR_X-3.6,pz:0,w:BELT_W};   // 输送带（车体局部系）：cx 起点 x，cz 中线 z，(px,pz) 放箱/取箱的箱心位置。右侧：起点在车体前部，朝门口延伸，取放点在机械臂正右方
+const zRange=()=>BSIDE&&envK!=='open'?[-6.6,-1.2]:[-6.6,6.6];   // 车体 z 可动范围：右侧输送带时，带的右缘不能超出右箱壁，所以车体偏左   // 皮带面高 0.75 m；基础线速 0.8 m/s
 function beltTex(){const c=document.createElement('canvas');c.width=64;c.height=16;const g=c.getContext('2d');g.fillStyle='#1c2229';g.fillRect(0,0,64,16);
   for(let i=0;i<4;i++){g.fillStyle='#39434f';g.fillRect(i*16+1,1,13,14)}g.fillStyle='#f5c400';g.fillRect(0,0,2,16);
   const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;return t}
@@ -1015,7 +1019,8 @@ function evalFace(c,hs,d,tp){
 function surf(b){   // 箱子正下方的输送线表面：1=车尾输送线，2=月台输送线
   if(envK!=='open'&&b.pos.x<DOCK_START+1.2&&b.pos.x>DOCK_END-1&&Math.abs(b.pos.z-DOCKZ)<BELT_W/2+.3&&b.pos.y-b.hs[1]>BELT_TOP-1.2)return{y:BELT_TOP,type:2};
   const v=robot.worldToLocal(b.pos.clone());
-  if(v.x<REAR_X+.3&&v.x>REAR_X-convL-.3&&Math.abs(v.z)<BELT_W/2){const w=robot.localToWorld(new THREE.Vector3(v.x,BELT_TOP,v.z));if(b.pos.y-b.hs[1]>w.y-1.2)return{y:w.y,type:1}}
+  const bc=BELTC();
+  if(v.x<bc.cx+.3&&v.x>bc.cx-convL-.3&&Math.abs(v.z-bc.cz)<bc.w/2){const w=robot.localToWorld(new THREE.Vector3(v.x,BELT_TOP,v.z));if(b.pos.y-b.hs[1]>w.y-1.2)return{y:w.y,type:1}}
   return null;
 }
 function landY(b){   // 落点高度：地面 / 输送线 / 货垛与障碍顶面 / 车体顶板 / 其正下方箱子的顶面
@@ -1117,7 +1122,7 @@ function graspStep(dt){
   for(const b of freeBoxes){
     if(b.state==='conv1'){   // 车尾输送线：向后送，到末端落到月台输送线上
       b.loc.x-=BELT_V*dt;b.pos.copy(robot.localToWorld(new THREE.Vector3(b.loc.x,BELT_TOP+b.hs[1],b.loc.z)));
-      if(b.loc.x<=REAR_X-convL+.4){
+      if(b.loc.x<=BELTC().cx-convL+.4){
         if(envK!=='open'&&b.pos.x<DOCK_START+1.2&&b.pos.x>DOCK_END-1){b.state='conv2';b.pos.y=BELT_TOP+b.hs[1]}   // 车尾输送线末端伸在月台输送线上方：直接交接（车横移时两条线不对中，由 conv2 段横向导正）
         else{b.state='fall';b.vy=0;b.vx=-BELT_V*.7}}
       continue}
@@ -1126,12 +1131,13 @@ function graspStep(dt){
       b.pos.x=Math.min(b.pos.x+BELT_V*dt,mx);b.pos.y=BELT_TOP+b.hs[1];
       {const dz=DOCKZ-b.pos.z;b.pos.z+=Math.sign(dz)*Math.min(Math.abs(dz),6*dt)}
       const v=robot.worldToLocal(b.pos.clone());
-      if(v.x>=REAR_X-convL+.4&&!freeBoxes.some(o=>o!==b&&(o.state==='ld1'||o.state==='lstop')&&o.loc.x<REAR_X-convL+.4+o.hs[0]+b.hs[0]+.2)){b.state='ld1';b.loc={x:v.x,z:v.z}}
+      const bc=BELTC();
+      if(v.x>=bc.cx-convL+.4&&!freeBoxes.some(o=>o!==b&&(o.state==='ld1'||o.state==='lstop')&&o.loc.x<bc.cx-convL+.4+o.hs[0]+b.hs[0]+.2)){b.state='ld1';b.loc={x:v.x,z:v.z}}
       continue}
     if(b.state==='ld1'||b.state==='lstop'){   // 装车：车尾输送线向机器人送，停在止挡处（车尾正后方）等待抓取
-      const stopX=REAR_X-3.6;let mx=stopX;for(const o of freeBoxes)if(o!==b&&(o.state==='ld1'||o.state==='lstop')&&o.loc.x>b.loc.x)mx=Math.min(mx,o.loc.x-o.hs[0]-b.hs[0]-.15);
+      const bc=BELTC(),stopX=bc.px;let mx=stopX;for(const o of freeBoxes)if(o!==b&&(o.state==='ld1'||o.state==='lstop')&&o.loc.x>b.loc.x)mx=Math.min(mx,o.loc.x-o.hs[0]-b.hs[0]-.15);
       b.loc.x=Math.min(b.loc.x+BELT_V*dt,mx);b.state=b.loc.x>=stopX-.02?'lstop':'ld1';
-      {const tz=b.state==='lstop'?(b.tz||0):0,dz=tz-b.loc.z;b.loc.z+=Math.sign(dz)*Math.min(Math.abs(dz),4*dt)}   // 导向：止挡处把箱子推到目标横向位置
+      {const tz=b.state==='lstop'&&b.tz!=null?b.tz:bc.cz,dz=tz-b.loc.z;b.loc.z+=Math.sign(dz)*Math.min(Math.abs(dz),4*dt)}   // 导向：止挡处把箱子推到目标横向位置
       b.pos.copy(robot.localToWorld(new THREE.Vector3(b.loc.x,BELT_TOP+b.hs[1],b.loc.z)));
       continue}
     if(b.state==='conv2'||b.state==='stop'){   // 月台输送线：向外送，末端依次排队
@@ -1221,7 +1227,7 @@ let apReturn=null;   // 上一箱放完后，机械臂原路退回的航点：�
 let dropN=0;const DROP=[58,70,82];
 function candList(E){   // 可取的箱子：暴露、静止、侧向够得着。排序：最外面一面优先 → 该面内最上面优先 → 离车正前方近的优先
   const o=[];for(let i=0;i<E.cartons.length;i++){if(!E.exist[i]||E.vy[i]!==0||!(i%6===5?exposedC(E,i):topExp(E,i)))continue;   // 最上层：前吸（前方需暴露）；其余层：顶吸（顶面需暴露）
-    const c=cargoC(E,i,new THREE.Vector3());if(Math.abs(c.z-pos.z)>14)continue;o.push({i,sl:Math.floor(i/36),j:Math.floor(i/6)%6,l:i%6,c,dz:Math.abs(c.z-pos.z)})}
+    const c=cargoC(E,i,new THREE.Vector3());if(c.z<zRange()[0]-14||c.z>zRange()[1]+14)continue;o.push({i,sl:Math.floor(i/36),j:Math.floor(i/6)%6,l:i%6,c,dz:Math.abs(c.z-pos.z)})}
   // 严格按“一面一面、一层一层”：最外面一面 → 从最上层开始逐层往下；同一层内先取相对居中的箱子，再向两侧，最后取最边上的箱子（相等时取离车更近的一侧）
   o.sort((a,b)=>b.sl-a.sl||b.l-a.l||Math.abs(a.j-2.5)-Math.abs(b.j-2.5)||a.dz-b.dz);return o;
 }
@@ -1283,10 +1289,10 @@ function chainSolve(tips,slide,lim,pref){
   for(let k=0;k<Math.min(cands.length,lim.tryN||8);k++)if(lim.accept(cands[k].qs))return cands[k];   // 最多检查代价最小的前几组
   return null;
 }
-function planPlace(){   // 把箱子放到车尾输送线起点上方：吸盘轴朝后（-x），箱子底面落在皮带面上（滚转严格：箱子须保持水平）
-  const E=ENV[envK],c=robot.localToWorld(new THREE.Vector3(REAR_X-3.6,BELT_TOP+E.hy+.3,0));
-  setAxes(true);let r=null;
-  for(const lz of ARMK===6?[LZ(),-LZ()]:[0]){r=chainSolve([[c.x+2.925,c.y,c.z+lz]],100,{ep:.3,ax:3,roll:6},ARMK===6?[0,30,-30,0,0,-30,0]:[0,20,-60,-40,0,-30,0]);if(r)break}
+function planPlace(){   // 把箱子放到输送线取放点上方：车尾时吸盘轴朝后（-x），右侧时朝右（+z）；箱子底面落在皮带面上（滚转严格：箱子须保持水平）
+  const E=ENV[envK],b=BELTC(),c=robot.localToWorld(new THREE.Vector3(b.px,BELT_TOP+E.hy+.3,b.pz)),pref=ARMK===6?[0,30,-30,0,0,-30,0]:[0,20,-60,-40,0,-30,0];let r=null;
+  if(BSIDE){poseYaw(-Math.PI/2);r=chainSolve([[c.x,c.y,c.z-2.925]],100,{ep:.3,ax:3,roll:6},[-90,...pref.slice(1)])}
+  else{setAxes(true);for(const lz of ARMK===6?[LZ(),-LZ()]:[0]){r=chainSolve([[c.x+2.925,c.y,c.z+lz]],100,{ep:.3,ax:3,roll:6},pref);if(r)break}}
   setAxes(false);
   return r?{q:r.qs[0]}:null;
 }
@@ -1415,35 +1421,43 @@ function splineCfgs(list,q0,step=4){   // 复刻 startTraj 的样条，按“最
 }
 // 一批构型里有多少个会碰撞；lastSkip：最后一个构型是贴合位（吸盘板可碰目标箱）
 function cfgsBad(cfgs,rel,st,hs,stH,lastSkip,slideV=100){let bad=0;cfgs.forEach((q,i)=>{if(armHits(q,slideV,rel,st,hs,lastSkip&&i===cfgs.length-1,stH))bad++});return bad}
+// 搬运终点：箱子落在输送线取放点。车尾：吸盘轴朝后，方位角取 ±π（J1 只能转到约 ±160°，故落点偏向一侧）；右侧：吸盘轴朝右，方位角 -π/2，左边的箱子绕车体后方转过去时 J1 > π（J1 范围 ±360°）
+function beltSweep(psi0,dir,dE){   // 返回 {sweep, dirE}：从抽出位方位角 ψ0 转到输送线方位角的转角
+  if(!BSIDE)return{sweep:dir*(Math.PI-dE)-psi0,dirE:dir};
+  const d=psi0>0?-Math.PI/2+2*Math.PI-psi0:-Math.PI/2-psi0;   // 右侧：右边的箱子（ψ0≤0）直接顺时针转；左边的箱子绕车体后方转（不从正前方、货面前扫过）
+  return{sweep:d,dirE:Math.sign(d)||1};
+}
 function planCarryTop(q0,P){   // 顶吸携带：先抬起，再沿 dir 方向一次转向车尾。箱子在世界系中朝向不变（长边始终沿 x）→ 转到侧向时横向只占箱宽的一半，不会撞侧壁。P={dir:±1 转向, Rc:回转半径, yh:携带高度}
   P=P||{dir:1,Rc:8,yh:null};
   const E=ENV[envK],S=shoulderPos(new THREE.Vector3());
   const top=apInfo.c.y+E.hy,y0=top+(apInfo.pc||6),yh=P.yh==null?S.y+3:P.yh,Rc=P.Rc,dir=P.dir;
   const dz0=apInfo.c.z-S.z,psi0=Math.atan2(-dz0,apInfo.c.x-S.x),R0=Math.hypot(apInfo.c.x-S.x,dz0);
-  const cB=robot.localToWorld(new THREE.Vector3(REAR_X-3.6,BELT_TOP,0)),fx=cB.x,fz=S.z-dir*LZ(),tipPlace=BELT_TOP+2*E.hy+.08+.3;   // 顶放：箱底离皮带 3 cm 时松开
-  const dE=ARMK===6?Math.asin(Math.min(.95,LZ()/Math.max(1,S.x-fx))):0,sweep=dir*(Math.PI-dE)-psi0;
-  const at=f=>{const ps=psi0+sweep*f,r=Rc+(R0-Rc)*Math.max(0,1-f/.3),y=Math.max(yh,y0-(y0-yh)*Math.min(1,f/.35));return{tip:[S.x+r*Math.cos(ps),y,S.z-r*Math.sin(ps)]}};   // 抬起后边转边降到 yh（高层时不会超出臂展）
-  const wps=[{tip:[apInfo.c.x,y0,apInfo.c.z]}];
+  const bcf=BELTC(),cB=robot.localToWorld(new THREE.Vector3(bcf.px,BELT_TOP,bcf.pz)),fx=cB.x,fz=BSIDE?cB.z:S.z-dir*LZ(),tipPlace=BELT_TOP+2*E.hy+.08+.3;   // 顶放：箱底离皮带 3 cm 时松开
+  const dE=!BSIDE&&ARMK===6?Math.asin(Math.min(.95,LZ()/Math.max(1,S.x-fx))):0,bsw=beltSweep(psi0,dir,dE),sweep=bsw.sweep,dirE=bsw.dirE;
+  const sm3=t=>t*t*(3-2*t),at=f=>{const ps=psi0+sweep*f,r=Rc+(R0-Rc)*Math.max(0,1-f/.3),y=Math.max(yh,y0-(y0-yh)*Math.min(1,f/.35));return{tip:[S.x+r*Math.cos(ps),y,S.z-r*Math.sin(ps)],f}};   // 抬起后边转边降到 yh（高层时不会超出臂展）
+  const ppEnds=BSIDE?[Math.PI/2,-Math.PI/2]:[0];   // 右侧输送带：箱子横放在带上（长边垂直于带），吸盘板要转 90°；转向有两种，取关节跳变小的
+  const wps=[{tip:[apInfo.c.x,y0,apInfo.c.z],f:0}];
   for(const f of[.08,.2,.35,.5,.65,.8,.92,.97])wps.push(at(f));
-  wps.push({tip:[fx,yh,fz]},{tip:[fx,tipPlace,fz]});
-  const build=fam=>{   // fam 1/2：整条路径固定用同一个吸盘板朝向族（箱子对称，转 180° 等价）；fam 0：逐点取较近的（可能在中途翻 180°）
+  wps.push({tip:[fx,yh,fz],f:1},{tip:[fx,tipPlace,fz],f:1});
+  const build=(fam,ppE)=>{   // fam 1/2：整条路径固定用同一个吸盘板朝向族（箱子对称，转 180° 等价）；fam 0：逐点取较近的（可能在中途翻 180°）
     const path=[];let qp=q0;
-    for(let k=0;k<wps.length;k++){const w=wps[k];let r=null;
-      if(fam!==2){poseTop(0);r=nearSolve(w.tip,100,qp,k>=1?dir:0)}
-      if(fam!==1){poseTop(0);TX=TX.map(v=>-v);TZ=TZ.map(v=>-v);const r2=nearSolve(w.tip,100,qp,k>=1?dir:0);if(r2&&(!r||fam===2||r2.cost<r.cost))r=r2}
+    for(let k=0;k<wps.length;k++){const w=wps[k],pp=ppE*sm3(Math.min(1,w.f/.9));let r=null;
+      if(fam!==2){poseTop(pp);r=nearSolve(w.tip,100,qp,k>=1?dirE:0)}
+      if(fam!==1){poseTop(pp);TX=TX.map(v=>-v);TZ=TZ.map(v=>-v);const r2=nearSolve(w.tip,100,qp,k>=1?dirE:0);if(r2&&(!r||fam===2||r2.cost<r.cost))r=r2}
       if(!r)return null;path.push(r.q);qp=r.q}
     return path};
   let best=null,bj=1e9;
   CFFAIL={fams:[]};
-  for(const fam of[1,2,0]){const p=build(fam);CFFAIL.fams.push([fam,p?Math.round(pathJump([q0,...p])):null,p?p.map(q=>Math.round(q[6])).join(','):null]);if(!p)continue;const jm=pathJump([q0,...p]);if(jm<bj){bj=jm;best=p}if(jm<=60)break}
-  setAxes(false);return best;
+  for(const ppE of ppEnds)for(const fam of[1,2,0]){const p=build(fam,ppE);CFFAIL.fams.push([fam,p?Math.round(pathJump([q0,...p])):null,p?p.map(q=>Math.round(q[6])).join(','):null]);if(!p)continue;const jm=pathJump([q0,...p]);if(jm<bj){bj=jm;best=p}if(jm<=60)break}
+  setAxes(false);planCarryTop.dir=dirE;return best;
 }
 function carryFront(q0,P){   // 前吸携带：抽出 → 边转边收（半径收到 Rm）→ 沿 dir 方向一次转向车尾 → 落到输送线。P={dir:±1 转向, Rm:回转半径, yc:携带高度}
   const E=ENV[envK],S=shoulderPos(new THREE.Vector3());
   const xr=apInfo.xf-6-SLIDE_T,dz0=apInfo.c.z-S.z,psi0=Math.atan2(-dz0,xr-S.x),R0=Math.hypot(xr-S.x,dz0);   // 抽出位吸盘面 xf-6，吸盘板后撤 SLIDE_T 之后在 xr   // 抽出位相对肩部的极坐标（方位角 ψ0、半径 R0）
   const yc=P.yc,Rm=Math.min(P.Rm,R0),dir=P.dir,cy=apInfo.c.y;   // 转角：从 ψ0 到正后方（±π），J1 只朝一个方向转
-  const cP=robot.localToWorld(new THREE.Vector3(REAR_X-3.6,BELT_TOP+E.hy+.3,0)),fx=cP.x+2.925,fz=S.z-dir*LZ(),Rend=Math.max(1,S.x-fx),yEnd=cP.y;
-  const dE=ARMK===6?Math.asin(Math.min(.95,LZ()/Rend)):0,sweep=dir*(Math.PI-dE)-psi0;   // 六轴：J1 转到 π-δ 即止（δ≈腕心方位相对正后方的偏角），不去够 ±180°   // 落点：车尾输送线起点（终点略偏向转向一侧：腕心方位角落在 ±180° 的同一侧）
+  const bcf=BELTC(),cP=robot.localToWorld(new THREE.Vector3(bcf.px,BELT_TOP+E.hy+.3,bcf.pz));
+  const fx=BSIDE?cP.x:cP.x+2.925,fz=BSIDE?cP.z-2.925:S.z-dir*LZ(),Rend=BSIDE?Math.max(1,fz-S.z):Math.max(1,S.x-fx),yEnd=cP.y,psiE=BSIDE?-Math.PI/2:dir*Math.PI;   // 落点：吸盘面位置（箱子靠机器人一侧的端面；右侧时吸盘轴朝右）
+  const dE=!BSIDE&&ARMK===6?Math.asin(Math.min(.95,LZ()/Rend)):0,bsw=beltSweep(psi0,dir,dE),sweep=bsw.sweep,dirE=bsw.dirE;   // 六轴：J1 转到 π-δ 即止（δ≈腕心方位相对正后方的偏角），不去够 ±180°   // 落点：车尾输送线起点（终点略偏向转向一侧：腕心方位角落在 ±180° 的同一侧）
   const sm=t=>t*t*(3-2*t);
   const at=f=>{   // 极坐标 (ψ, r, y)：前 35% 收拢半径、前 20% 抬到 yc；转动期间保持高位；最后 30% 一边伸出到落点半径一边下降，J1 已经转到位，不会翻到“后仰”那一支
     const ps=psi0+sweep*f,t=Math.max(0,(f-.7)/.3);
@@ -1451,10 +1465,10 @@ function carryFront(q0,P){   // 前吸携带：抽出 → 边转边收（半径�
     return{tip:[S.x+r*Math.cos(ps),y,S.z-r*Math.sin(ps)],psi:ps-psi0*(1-Math.min(1,f/.35))}};   // 吸盘轴朝向：开头保持正对货面（+x）直线抽出，前 35% 内逐渐转成径向朝外——避免第一步手腕突然滚转 100°+
   const wps=[{tip:[xr,cy,apInfo.c.z],psi:0}];
   for(const f of[.08,.2,.35,.5,.65,.78,.88,.95])wps.push(at(f));
-  wps.push({tip:[fx,yEnd,fz],psi:dir*Math.PI});
+  wps.push({tip:[fx,yEnd,fz],psi:psiE});
   const path=[];let qp=q0,failed=false;
-  wps.forEach((w,k)=>{if(failed)return;poseYaw(w.psi);const r=nearSolve(w.tip,0,qp,k>=1?dir:0);if(!r){failed=true;CFFAIL={k,tip:w.tip,psi:w.psi,S:[S.x,S.y,S.z]};return}path.push(r.q);qp=r.q});
-  setAxes(false);return failed?null:path;
+  wps.forEach((w,k)=>{if(failed)return;poseYaw(w.psi);const r=nearSolve(w.tip,0,qp,k>=1?dirE:0);if(!r){failed=true;CFFAIL={k,tip:w.tip,psi:w.psi,S:[S.x,S.y,S.z]};return}path.push(r.q);qp=r.q});
+  setAxes(false);carryFront.dir=dirE;return failed?null:path;
 }
 const pathJump=P=>{let m=0;for(let k=1;k<P.length;k++)for(let i=0;i<7;i++)m=Math.max(m,Math.abs(P[k][i]-P[k-1][i]));return m};   // 路径相邻航点间的最大关节变化（°）
 function planCarryBest(pl,quick){   // 搜索无碰撞的携带路径：转向（往离侧壁远的一侧转）、回转半径、携带高度依次尝试；返回 {path,bad}，bad=碰撞采样数（0=无碰撞）
@@ -1475,16 +1489,17 @@ function planCarryBest(pl,quick){   // 搜索无碰撞的携带路径：转向�
     for(const yh of ycs)for(const Rc of quick?[8,6.5]:[8,7,6])vars.push({Rc,yh})}
   let best=null;
   for(const plv of pls)for(const dir of dirs)for(const v of vars){
-    RMIN_WC=(mode==='front'&&v.Rm<6)?1.5:3;
+    RMIN_WC=(mode==='front'&&(v.Rm<6||BSIDE))?1.5:3;
     const rel=heldRel(plv.q2,100,c);
     const path=mode==='front'?carryFront(plv.q3,{dir,Rm:v.Rm,yc:v.yc}):planCarryTop(plv.q3,{dir,Rc:v.Rc,yh:v.yh});
     RMIN_WC=3;
     if(!path)continue;
+    const dirU=BSIDE?(mode==='front'?carryFront.dir:planCarryTop.dir):dir;
     const front=mode==='front',relC=front?new THREE.Matrix4().makeTranslation(0,-.6,0).multiply(rel):rel;   // 前吸：吸盘板已后撤（局部 -0.6），箱子随之后移
     const bad=cfgsBad(splineCfgs([plv.q3,...path],plv.q2,quick?5:6),relC,stRed,hs,stSkip,false,front?0:100);
     const jm=pathJump([plv.q3,...path]),sc=bad+Math.max(0,jm-60)*3;   // 碰撞采样数 + 关节跳变惩罚：有翻转的路径排后面
-    if(bad===0&&jm<=60)return{path,bad:0,dir,jm,pl2:plv.flipped?plv:null};
-    if(!best||sc<best.sc)best={path,bad,dir,jm,sc,pl2:plv.flipped?plv:null};
+    if(bad===0&&jm<=60)return{path,bad:0,dir:dirU,jm,pl2:plv.flipped?plv:null};
+    if(!best||sc<best.sc)best={path,bad,dir:dirU,jm,sc,pl2:plv.flipped?plv:null};
   }
   return best;
 }
@@ -1520,20 +1535,20 @@ function planPick(){   // 依次规划：预抓取位 → 贴合位 → 抽出�
 let MIN_D=5.5;   // 抓取时臂座到箱面的最小距离（局部单位，×10 = cm）：车头前表面在臂座前 4.4，5.5 即车头与箱面至少留 11 cm；不再人为留大间距，车位由“能拾取且够得着的箱子最多”决定
 function findParking(cd,force){   // 为排在最前面的箱子找一个机械臂够得着的车位：在前后、左右两个方向搜索，移动量最小者优先
   const xf=cd.c.x-2.925,ap0=apInfo,sp=pos.clone(),pp=robot.position.clone(),pr=robot.rotation.clone(),Dcur=xf-(pos.x+1.6);
-  const top=force==='top',Ds=[...new Set((top?[Dcur,9,10,11,12,8,13,7,6,5.5,14,15]:[Dcur,15,14,16,13,17]).map(d=>Math.round(d*2)/2))].filter(d=>top?(d>=Math.max(5.5,MIN_D)&&d<=16):(d>=Math.max(LOADM&&cd.l>=5?14:12,MIN_D)&&d<=18)),cand=[];
-  for(const D of Ds)for(let z=-6.6;z<=6.61;z+=.6)cand.push({D,z,cost:Math.abs(D-Dcur)+Math.abs(z-sp.z)*1.5});
+  const top=force==='top',Ds=[...new Set((top?[Dcur,9,10,11,12,8,13,7,6,5.5,14,15]:[Dcur,15,14,16,13,17]).map(d=>Math.round(d*2)/2))].filter(d=>top?(d>=Math.max(5.5,MIN_D)&&d<=16):(d>=Math.max(LOADM&&(cd.l>=5||force==='front')?12.5:12,MIN_D)&&d<=18)),cand=[];
+  for(const D of Ds)for(let z=zRange()[0];z<=zRange()[1]+.01;z+=.6)cand.push({D,z,cost:Math.abs(D-Dcur)+Math.abs(z-sp.z)*1.5});
   cand.sort((a,b)=>a.cost-b.cost);
   // 先各距离各试一遍“不横移 / 略朝目标横移”（很快覆盖所有前后距离），再按移动量从小到大补充搜索
-  const zt=Math.max(-6.6,Math.min(6.6,cd.c.z*.4)),quick=[];for(const D of Ds)for(const z of[sp.z,zt])quick.push({D,z,cost:0});
+  const zt=Math.max(zRange()[0],Math.min(zRange()[1],cd.c.z*.4)),quick=[];for(const D of Ds)for(const z of[sp.z,zt])quick.push({D,z,cost:0});
   const seen=new Set(),order=[];for(const c of[...quick,...cand]){const k=c.D+'|'+c.z.toFixed(1);if(!seen.has(k)){seen.add(k);order.push(c)}}
   order.sort((a,b)=>(a.cost>0?1:0)-(b.cost>0?1:0)||a.cost-b.cost);
   const feas=[];let carryN=0;apInfo={c:cd.c,xf,cd,force};
   const setAt=(px,z)=>{pos.x=px;pos.z=z;robot.position.set(px,sp.y,z);robot.rotation.set(0,0,0);robot.updateMatrixWorld(true)};
-  const okAt=(px,z)=>{setAt(px,z);apInfo={c:cd.c,xf,cd,force};return !!planPick()&&(!(LOADM&&cd.l>=5)||stationOK(cd))};
+  const okAt=(px,z)=>{setAt(px,z);apInfo={c:cd.c,xf,cd,force};return !!planPick()&&(!(LOADM&&(cd.l>=5||force==='front'))||stationOK(cd))};
   for(let k=0;k<Math.min(order.length,Ds.length*2+40)&&feas.length<12;k++){
     const c=order[k],px=xf-c.D-1.6;
     if(!okAt(px,c.z))continue;
-    if(!(okAt(px+.25,c.z)&&okAt(px-.25,c.z)&&okAt(px,Math.min(6.6,c.z+.25))&&okAt(px,Math.max(-6.6,c.z-.25))))continue;   // 只要“边缘刚好够得着”的车位不要：到位有误差时会规划失败
+    if(!(okAt(px+.25,c.z)&&okAt(px-.25,c.z)&&okAt(px,Math.min(zRange()[1],c.z+.25))&&okAt(px,Math.max(zRange()[0],c.z-.25))))continue;   // 只要“边缘刚好够得着”的车位不要：到位有误差时会规划失败
     if(AVOID&&carryN<10){carryN++;setAt(px,c.z);apInfo={c:cd.c,xf,cd,force};const pl=planPick(),cr=pl&&planCarryBest(pl,true);if(!(cr&&cr.bad===0))continue}   // 避障开时：携带路径必须无碰撞（评估次数有限）
     feas.push({x:px,z:c.z,k})}
   // 车位选择：本面同一“阶段”（最上层用前吸；其余层用顶吸）里，能从该车位拾取的箱子最多者优先——底盘停一次就尽量多卸，机械臂动、底盘不动；并列时取移动最少的
@@ -1650,24 +1665,28 @@ function feedStep(dt,E){   // 月台输送线最外端不断送来新箱子（�
   if(inLine>=4||inLine>=empty||feedT<2.2/SPD)return;
   if(freeBoxes.some(b=>b.state==='ld2'&&b.pos.x<DOCK_END+3+2*b.hs[0]+1))return;
   const hue=.09+.02*Math.random(),m=mkBox(E.hy,new THREE.Color().setHSL(hue,.45,.42+.03*Math.random()));
-  m.position.set(DOCK_END+3,BELT_TOP+E.hy,DOCKZ);freeBoxes.push({mesh:m,pos:m.position,vy:0,vx:0,vz:0,hs:[2.925,E.hy,1.9],state:'ld2'});feedT=0;
+  m.position.set(DOCK_END+3,BELT_TOP+E.hy,DOCKZ);if(BSIDE)m.rotation.y=Math.PI/2;   // 右侧输送带：箱子横放（长边垂直于带的方向）
+  freeBoxes.push({mesh:m,pos:m.position,vy:0,vx:0,vz:0,hs:BSIDE?[1.9,E.hy,2.925]:[2.925,E.hy,1.9],state:'ld2'});feedT=0;
 }
-function pickCfgs(pl,cr,forceTop){   // 车尾输送线止挡处的抓取位（吸盘贴箱）与其上方/后方的接近位；沿用搬运路径末端的姿态族，保证关节连续
-  const E=ENV[envK],S=shoulderPos(new THREE.Vector3()),dir=cr.dir,front=!forceTop&&apInfo.pm==='front',hy=E.hy,last=cr.path[cr.path.length-1];
-  const cB=robot.localToWorld(new THREE.Vector3(REAR_X-3.6,BELT_TOP,0)),fz=S.z-dir*LZ();let out=null;
+function pickCfgs(pl,cr,forceTop){   // 输送线取放点的抓取位（吸盘贴箱）与其上方/旁边的接近位；沿用搬运路径末端的姿态族，保证关节连续
+  const E=ENV[envK],S=shoulderPos(new THREE.Vector3()),dir=cr.dir,front=!forceTop&&apInfo.pm==='front',hy=E.hy,last=cr.path[cr.path.length-1],b=BELTC();
+  const cB=robot.localToWorld(new THREE.Vector3(b.px,BELT_TOP,b.pz)),fz=BSIDE?cB.z:S.z-dir*LZ();let out=null;
   RMIN_WC=1.5;
   if(front){
-    poseYaw(dir*Math.PI);const fx=cB.x+2.925,tG=[fx,BELT_TOP+hy,fz],g=nearSolve(tG,100,last,0),h=g&&nearSolve([fx+2.5,BELT_TOP+hy+.6,fz],100,g.q,0);   // 前吸取箱：吸盘板伸出（底托缩在后面）贴箱，吸住并抬起后再收回吸盘板、让底托伸到箱底下
-    if(g&&h)out={qg:g.q,qh:h.q,tipG:tG};
+    if(BSIDE){   // 右侧：吸盘轴朝右（+z），贴箱子靠机器人一侧的端面
+      poseYaw(-Math.PI/2);const tG=[cB.x,BELT_TOP+hy,cB.z-2.925],g=nearSolve(tG,100,last,0),h=g&&nearSolve([cB.x,BELT_TOP+hy+.6,cB.z-2.925-2.5],100,g.q,0);
+      if(g&&h)out={qg:g.q,qh:h.q,tipG:tG,tz:cB.z}}
+    else{
+      poseYaw(dir*Math.PI);const fx=cB.x+2.925,tG=[fx,BELT_TOP+hy,fz],g=nearSolve(tG,100,last,0),h=g&&nearSolve([fx+2.5,BELT_TOP+hy+.6,fz],100,g.q,0);   // 前吸取箱：吸盘板伸出（底托缩在后面）贴箱，吸住并抬起后再收回吸盘板、让底托伸到箱底下
+      if(g&&h)out={qg:g.q,qh:h.q,tipG:tG,tz:fz}}
   }else{
-    const fx=cB.x,tG=[fx,BELT_TOP+2*hy+.05,fz],tH=[fx,BELT_TOP+2*hy+3.5,fz];
-    const solve=(t,qp)=>{poseTop(0);const r1=nearSolve(t,100,qp,0);TX=TX.map(v=>-v);TZ=TZ.map(v=>-v);const r2=nearSolve(t,100,qp,0);return(r1&&(!r2||r1.cost<=r2.cost))?r1:r2};
-    const g=solve(tG,last),h=g&&solve(tH,g.q);if(g&&h)out={qg:g.q,qh:h.q,tipG:tG};
+    const fx=cB.x,tG=[fx,BELT_TOP+2*hy+.05,fz],tH=[fx,BELT_TOP+2*hy+3.5,fz],pp=BSIDE?Math.PI/2:0;   // 右侧：箱子横放，吸盘板转 90°（两种转向等价，姿态族里都会试）
+    const solve=(t,qp)=>{poseTop(pp);const r1=nearSolve(t,100,qp,0);TX=TX.map(v=>-v);TZ=TZ.map(v=>-v);const r2=nearSolve(t,100,qp,0);return(r1&&(!r2||r1.cost<=r2.cost))?r1:r2};
+    const g=solve(tG,last),h=g&&solve(tH,g.q);if(g&&h)out={qg:g.q,qh:h.q,tipG:tG,tz:fz}
   }
   RMIN_WC=3;setAxes(false);return out;
 }
-// —— 最上层（前放）：输送带上仍然顶吸；顶吸的吸盘板放不进车顶下面 0.5 cm 的空隙，所以先把箱子放到该槽位正前方（门口一侧、还是空的一面）的车厢地面上，改成前吸再抬起、水平推进槽位 ——
-function ldStation(cd){const E=ENV[envK];return{i:-1,sl:cd.sl+1,j:cd.j,l:0,c:new THREE.Vector3(cd.c.x-6,cd.c.y-5*E.hc,cd.c.z)}}
+function ldStation(cd){const E=ENV[envK];return{i:-1,sl:cd.sl+1,j:cd.j,l:0,c:new THREE.Vector3(cd.c.x-6,cd.c.y-cd.l*E.hc,cd.c.z)}}
 function stFront(st){   // 中转位前吸抓取：接近位（面前 2）→ 贴合位
   const S=shoulderPos(new THREE.Vector3()),xfS=st.c.x-2.925,y=st.c.y,z=st.c.z,phi0=Math.atan2(-(z-S.z),xfS-S.x)*R2D;
   setAxes(false);RMIN_WC=1.5;
@@ -1687,7 +1706,7 @@ function stationOK(cd){   // 该车位能否同时服务“中转位顶放 + 前
 function ldTryReg(cd){
   apInfo={c:cd.c,xf:cd.c.x-2.925,cd,force:'front',tries:0};
   const dh=Math.hypot(apInfo.xf-(pos.x+1.6*Math.cos(yaw)),cd.c.z-(pos.z-1.6*Math.sin(yaw)));
-  if(!(dh>=14&&dh<=21))return null;
+  if(!(dh>=12.5&&dh<=21))return null;
   const plR=planPick();if(!plR)return null;
   const crR=planCarryBest(plR,false);if(!crR||!crR.path)return null;
   const st=ldStation(cd);
@@ -1708,7 +1727,7 @@ function ldShiftReg(reg,from0){   // 中转后的前吸/抬升/放入路径：J1
   reg.F={...F,q1:g(F.q1),q2:g(F.q2)};reg.lift=reg.lift.map(g);reg.plR={...reg.plR,q1:g(reg.plR.q1),q2:g(reg.plR.q2),q3:g(reg.plR.q3)};reg.crR={...reg.crR,path:reg.crR.path.map(g)};
 }
 function ldTry(cd,force){   // 在当前车位规划：放置位 → 搬运路径 → 车尾取箱位；够得着返回 {pl,cr,pc,front}，否则 null
-  if(cd.l>=5)return ldTryReg(cd);   // 最上层：顶吸取箱 → 地面中转 → 前吸放入
+  if(cd.l>=5||force==='front')return ldTryReg(cd);   // 前放（最上层，或顶吸够不着的槽位）：输送带上仍然顶吸取箱 → 地面中转 → 前吸放入
   apInfo={c:cd.c,xf:cd.c.x-2.925,cd,force,tries:0};
   const dh=Math.hypot(apInfo.xf-(pos.x+1.6*Math.cos(yaw)),cd.c.z-(pos.z-1.6*Math.sin(yaw)));
   if(!(dh>=Math.max(4,MIN_D)&&dh<=21))return null;
@@ -1732,7 +1751,7 @@ function ldApproach(pc,from,carryEnd){   // 去取箱位的关节航点：从上
   else if(!carryEnd)out.push(pc.qh);
   out.push(pc.qg);return out;
 }
-function ldSetTz(pc){for(const b of freeBoxes)if(b.state==='ld1'||b.state==='lstop')b.tz=pc.tipG[2]-robot.position.z}   // 把车尾输送线上的箱子提前导向到取箱位的横向位置
+function ldSetTz(pc){for(const b of freeBoxes)if(b.state==='ld1'||b.state==='lstop')b.tz=pc.tz-robot.position.z}   // 把车尾输送线上的箱子提前导向到取箱位的横向位置
 function loadStep(dt){
   if(!ldS)return;ldT+=dt*SPD;const E=ENV[envK],say=m=>{ldMsg=m;ldT=0},conv=()=>{let m=0;for(let i=0;i<7;i++)m=Math.max(m,Math.abs(qc[i]-qt[i]));return m<1.5&&Math.abs(qsc-qs)<3};
   const fail=m=>{ldMsg=m;ldS=0;cmd=[0,0,0]};
@@ -1813,12 +1832,13 @@ document.getElementById('lclr').onclick=()=>{if(emptyCargo()){LOADM=true;ldMsg='
 // ======== 车尾伸缩输送线 ========
 let convL=6;
 const convG=new THREE.Group();convG.position.set(REAR_X,0,0);robot.add(convG);
+function setBeltPos(side){BSIDE=side;const b=BELTC();convG.position.set(b.cx,0,b.cz);cbelt.scale.z=b.w/BELT_W;crail.forEach((r,i)=>{r.position.z=(i?1:-1)*(b.w/2+.15)});cend.scale.y=(b.w+.6)/(BELT_W+.6)}   // 右侧输送带窄一些（6.4，箱子横放 5.85 刚好），车体才能往右多靠一点去够右边的箱子
 const cbelt=new THREE.Mesh(new THREE.BoxGeometry(1,.5,BELT_W),new THREE.MeshStandardMaterial({map:bTexR,roughness:.9}));cbelt.position.y=BELT_TOP-.25;convG.add(cbelt);
 const crail=[-1,1].map(sg=>{const m=new THREE.Mesh(new THREE.BoxGeometry(1,.7,.3),M(0xf5c400,.1,.6));m.position.set(0,BELT_TOP-.15,sg*(BELT_W/2+.15));convG.add(m);return m});
 const cend=new THREE.Mesh(new THREE.CylinderGeometry(.35,.35,BELT_W+.6,16),M(0x9aa3ad,.7,.4));cend.rotation.x=Math.PI/2;convG.add(cend);
 const clegs=[0,1,2].map(()=>{const l=new THREE.Mesh(new THREE.CylinderGeometry(.18,.18,1,10),M(0x2a3038,.5,.5)),w=new THREE.Mesh(new THREE.CylinderGeometry(.35,.35,.4,12),rubber);w.rotation.x=Math.PI/2;convG.add(l,w);return{l,w}});
 function convStep(dt){
-  const tgt=envK==='open'?6:Math.max(3,Math.min(60,(pos.x-6)+9));convL+=(tgt-convL)*Math.min(1,dt*3);const L=convL;   // 末端伸到月台输送线上方
+  const tgt=envK==='open'?6:Math.max(3,Math.min(60,(pos.x+BELTC().cx)+9));convL+=(tgt-convL)*Math.min(1,dt*3);const L=convL;   // 末端伸到月台输送线上方
   cbelt.scale.x=L;cbelt.position.x=-L/2;crail.forEach(r=>{r.scale.x=L;r.position.x=-L/2});cend.position.set(-L,BELT_TOP-.25,0);
   bTexR.repeat.set(L/2.5,1);{const sg=LOADM?-1:1;bTexR.offset.x=(bTexR.offset.x+sg*BELT_V*dt/2.5)%1;bTexD.offset.x=(bTexD.offset.x+sg*BELT_V*dt/2.5)%1}
   clegs.forEach((g,i)=>{const x=i===2?L-.5:L*(.42+.26*i);g.l.visible=g.w.visible=L>8||i===2;
@@ -1829,7 +1849,7 @@ const ENVN={open:'空旷场地：方块/圆柱障碍物 + 12 m 围墙',gp:'标�
 function setEnv(k){
   resetCargo();envK=k;grid.visible=k==='open';document.getElementById('slr').style.display=k==='open'?'none':'flex';applySlope(slopeDeg);for(const n in envG)envG[n].visible=n===k;
   bx.length=0;wl.length=0;cy2.length=0;ENV[k].wl.forEach(b=>wl.push(b));ENV[k].bx.forEach(b=>bx.push(b));ENV[k].cy.forEach(c=>cy2.push(c));room=ENV[k].room;
-  pos.set(k==='open'?0:11,0,0);yaw=0;cur[0]=cur[1]=cur[2]=0;cmd=[0,0,0];
+  pos.set(k==='open'?0:11,0,BSIDE&&k!=='open'?-4.4:0);yaw=0;cur[0]=cur[1]=cur[2]=0;cmd=[0,0,0];
   document.querySelectorAll('#btns button').forEach(x=>x.classList.toggle('on',x.dataset.c==='0,0,0'));
   pPos.fill(-1000);wI=0;pGeo.attributes.position.updateRange.count=-1;pGeo.attributes.position.needsUpdate=true;
   document.querySelectorAll('#envb button').forEach(b=>b.classList.toggle('on',b.dataset.e===k));
@@ -1837,6 +1857,7 @@ function setEnv(k){
   cd=k==='open'?55:60;fl.checked=true;
 }
 document.querySelectorAll('#envb button').forEach(b=>b.onclick=()=>setEnv(b.dataset.e));
+document.querySelectorAll('#beltb button').forEach(b=>b.onclick=()=>{setBeltPos(b.dataset.b==='side');setEnv(envK);document.querySelectorAll('#beltb button').forEach(x=>x.classList.toggle('on',x===b))});   // 切换输送带位置：重置场景，车体回到对应的起始位置
 const sh=new THREE.Mesh(new THREE.PlaneGeometry(14.4,11.4),new THREE.MeshBasicMaterial({color:0,transparent:true,opacity:.18}));
 sh.rotation.x=-Math.PI/2;sh.position.y=.02;robot.add(sh);
 
@@ -1983,7 +2004,7 @@ setEnv('gp');setChassis('B');
   if(envK==='open'){pos.x=Math.max(-54,Math.min(54,pos.x));pos.z=Math.max(-54,Math.min(54,pos.z))}
   else{   // 集装箱场景：车体外形（前后 ±6.0 含防撞条、左右 ±5.05 含侧灯带）不能穿过箱壁 / 门柱 / 货面 / 后壁
     const ca=Math.abs(Math.cos(yaw)),sa=Math.abs(Math.sin(yaw)),ex=ca*6.0+sa*5.05,ez=sa*6.0+ca*5.05,zl=11.75-.1-ez;
-    if(pos.x+ex>0&&zl>=0)pos.z=Math.max(-zl,Math.min(zl,pos.z));   // 车体进入门洞以后，左右受箱壁限制（正对时 ±6.6，与自动抓取的车位搜索范围一致）
+    if(pos.x+ex>0&&zl>=0)pos.z=Math.max(-zl,Math.min(BSIDE?Math.min(zl,-1.2):zl,pos.z));   // 右侧输送带时右缘不能顶到右箱壁，车体偏左   // 车体进入门洞以后，左右受箱壁限制（正对时 ±6.6，与自动抓取的车位搜索范围一致）
     const E=ENV[envK];let fx=1e9;
     if(E.exist)for(let i=0;i<E.cartons.length;i++)if(E.exist[i]&&E.cartons[i][0]<fx)fx=E.cartons[i][0];
     fx=fx<1e9?fx-2.925:58.98;                          // 最外一排货物的外表面，或无货时的后壁
