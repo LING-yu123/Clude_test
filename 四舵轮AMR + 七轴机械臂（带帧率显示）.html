@@ -21,6 +21,9 @@ label{display:flex;align-items:center;gap:8px}
 input[type=range]{flex:1;accent-color:var(--accent)}
 #arm{position:absolute;right:12px;top:calc(12px + env(safe-area-inset-top,0px));width:236px;background:var(--panel);border-radius:12px;padding:8px 12px;font-size:12px}
 #arm summary{cursor:pointer;font-size:14px;margin-bottom:4px}
+#ui>details>summary{cursor:pointer;font-size:14px;margin-bottom:4px}
+#ui .sec{margin-top:4px;border-top:1px solid #8a97a633;padding-top:4px}
+#ui .sec>summary{cursor:pointer;font-size:13px;font-weight:600;margin:2px 0 4px;opacity:.85}
 #arm label{display:flex;align-items:center;gap:6px;margin:3px 0}
 #arm label span{width:74px}#arm label b{width:34px;text-align:right;font-weight:500}
 #pre{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin:8px 0 6px}
@@ -56,7 +59,8 @@ button.lk.on{background:#dc2626;border-color:#dc2626;color:#fff}
 <body>
 <canvas id="c"></canvas>
 <div id="top"><b>🤖 四舵轮 AMR + 机械臂（七轴 / 六轴可切换）</b><br>移动底盘 · 7-DOF 冗余臂 / FANUC M-20iD/35 六轴臂 · 5×10 分区吸盘<br><span id="st">待机</span><br><span id="an" style="font-size:12px;opacity:.75"></span></div>
-<div id="ui">
+<div id="ui"><details open id="uiD"><summary><b>控制面板</b></summary>
+  <details open class="sec"><summary>底盘与悬挂</summary>
   <div class="g" id="btns">
     <button data-c="1,0,0">前进</button><button data-c="-1,0,0">后退</button>
     <button data-c="0,1,0">左平移</button><button data-c="0,-1,0">右平移</button>
@@ -72,19 +76,24 @@ button.lk.on{background:#dc2626;border-color:#dc2626;color:#fff}
   <label style="margin-bottom:4px;font-size:12px"><input type="checkbox" id="bmp" checked>路面凸起物（碾过时跷跷板自动摆动）</label>
   <label id="rkr" style="margin-bottom:4px"><span style="width:88px">跷跷板手动偏置</span><input id="rkS" type="range" min="-8" max="8" step="0.5" value="0"><b id="rkV" style="width:38px;text-align:right;font-weight:500">0°</b></label>
   <label id="rkaw" style="margin-bottom:6px;font-size:12px"><input type="checkbox" id="rkA">跷跷板自动摆动（演示）　<span style="opacity:.6">正值：右后轮上抬、左后轮下沉</span></label>
+  </details>
+  <details open class="sec"><summary>场景与速度</summary>
   <div class="g" id="envb" style="grid-template-columns:repeat(3,1fr);margin-bottom:4px"><button data-e="open">空旷场地</button><button data-e="gp">标柜 20GP</button><button data-e="hq">高柜 20HQ</button></div>
   <div id="envn" style="font-size:11px;opacity:.7;margin-bottom:6px"></div>
   <label id="slr" style="margin-bottom:6px"><span style="width:88px">登车桥坡度</span><input id="dkS" type="range" min="0" max="10" step="0.5" value="0"><b id="dkV" style="width:34px;text-align:right;font-weight:500">0°</b></label>
   <label>速度<input id="sp" type="range" min="0.5" max="10" step="0.1" value="4"></label>
   <div style="display:flex;gap:8px;align-items:center;margin-top:6px"><label style="flex:1"><input type="checkbox" id="fl" checked>视角跟随车体</label><button id="vov" style="padding:4px 10px">全景</button></div>
   <div style="font-size:11px;opacity:.7">左键旋转 · 右键/Shift+左键平移 · 滚轮缩放</div>
+  </details>
+  <details open class="sec"><summary>传感器（雷达 / 相机）</summary>
   <label style="margin-top:6px"><input type="checkbox" id="rdo" checked>雷达仿真：Livox Mid-360</label>
   <div style="font-size:11px;opacity:.7;margin-top:2px">360°×59°（−7°~52°）· 20 万点/s · 10 Hz · 0.1–40 m</div>
   <label style="margin-top:6px"><input type="checkbox" id="dco" checked>3D 相机 RGB-D：迈尔微视 M4 Pro（立柱随 J1 转，自带自转）</label>
   <div id="csel" class="g" style="grid-template-columns:repeat(3,1fr);margin:6px 0 4px"><button data-cam="U" style="font-size:12px;padding:5px 2px">上相机<br>可升降</button><button data-cam="M" class="on" style="font-size:12px;padding:5px 2px">中相机<br>正视前方</button><button data-cam="L" style="font-size:12px;padding:5px 2px">下相机<br>下俯 20°</button></div>
   <label style="margin-bottom:4px;font-size:12px"><span style="width:84px">上相机升降</span><input id="liftS" type="range" min="0" max="48" step="1" value="0"><b id="liftV" style="width:48px;text-align:right;font-weight:500">0 cm</b></label>
   <div style="font-size:11px;opacity:.7;margin-top:2px">iToF 深度 81°×61° · RGB 88°×56° · 0.3–5 m · 精度 ±4 mm+0.25%·depth · 12 fps</div>
-</div>
+  </details>
+</details></div>
 <div id="dcw"><div class="dv"><canvas id="dcr" width="128" height="72"></canvas><span id="dcrl">RGB 1920×1080 · 88°×56°</span></div><div class="dv"><canvas id="dcc" width="128" height="96"></canvas><span id="dccl">深度 640×480 · 81°×61°</span><div id="dlg"></div></div></div>
 <div id="rd"><span>Livox Mid-360 · 3D 点云（拖动旋转 / 滚轮缩放）</span></div>
 <div id="sg"><details open><summary><b>奇异位形分析</b></summary>
