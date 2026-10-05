@@ -106,7 +106,8 @@ button.lk.on{background:#dc2626;border-color:#dc2626;color:#fff}
   <div class="lg">绿 J5轴 · 橙 J7轴 · 蓝 J1轴 · 黄点 腕心 · 紫 肩→腕连线</div></details></div>
 <div id="lp"><details open><summary><b>雷达位姿</b></summary><div id="lpt" style="display:flex;gap:4px;margin-bottom:4px"></div><label style="margin:2px 0 4px"><input type="checkbox" id="lpe" checked>启用该雷达（青 / 橙 / 紫 / 绿）</label><div id="lps"></div><div style="font-size:11px;opacity:.7;margin-top:4px">相对车体中心（x 前 / y 上 / z 右）；偏航左偏为正，俯仰抬头为正，横滚右倾为正。点云按雷达自身姿态扫描。</div><div style="margin-top:6px"><label style="margin:2px 0"><span style="width:64px">点云着色</span><select id="lcm" style="flex:1"><option value="0">按高度</option><option value="1">按雷达（青/橙/紫/绿）</option><option value="2">按距离</option><option value="3">按命中类型</option><option value="4">按反射强度</option></select></label><label style="margin:2px 0"><input type="checkbox" id="lnz" checked>测距噪声（σ≈2 cm）</label><label style="margin:2px 0"><span style="width:64px">点密度</span><input id="ldn" type="range" min="0.2" max="1" step="0.05" value="1"><b id="ldv" style="width:46px;text-align:right;font-weight:500">100%</b></label><div id="lrate" style="font-size:11px;opacity:.7;min-height:15px"></div></div><button id="lpr">复位到默认位姿</button></details></div>
 <div id="arm"><details open><summary><b id="armT">七轴机械臂</b></summary>
-  <div id="armK" class="g" style="grid-template-columns:1fr 1fr;margin:4px 0 6px"><button data-k="7" class="on" style="font-size:12px;padding:5px 2px">七轴<br>冗余臂</button><button data-k="6" style="font-size:12px;padding:5px 2px">六轴 FANUC<br>M-20iD/35</button></div>
+  <div id="armK" class="g" style="grid-template-columns:1fr 1fr 1fr;margin:4px 0 6px"><button data-k="7" class="on" style="font-size:12px;padding:5px 2px">七轴<br>冗余臂</button><button data-k="6" style="font-size:12px;padding:5px 2px">六轴<br>M-20iD/35</button><button data-k="6L" style="font-size:12px;padding:5px 2px">六轴<br>+底座升降</button></div>
+  <label id="liftR" style="display:none;margin:4px 0"><span style="width:74px">底座升降</span><input id="lftS" type="range" min="0" max="60" step="1" value="0"><b id="lftV" style="width:44px;text-align:right;font-weight:500">0 cm</b></label>
   <div id="js"></div><div id="pre"></div><div id="zn"></div><div id="tip" style="margin-top:8px"></div>
   <div style="margin-top:8px;font-size:12px"><b>吸盘抓取</b></div>
   <div id="gst" style="font-size:12px;opacity:.85;min-height:34px;white-space:pre-line"></div>
@@ -236,6 +237,12 @@ const modsB={FL:swerveS(4.0,-3.6),FR:swerveS(4.0,3.6),RL:swerveS(-4.0,-3.6),RR:s
 const L1=4.0,L2=3.0,L3=3.5,Y2_7=.6;   // 经扫参优化（20GP/20HQ 整面卸货：少挪车、擦碰采样最少）：大臂 8 / 小臂 6 / 前臂 7（世界，dm），J2 离转台 0.6（原 3.5/3.0/2.5、0.75）
 const ASC=2;
 const AB=new THREE.Group();AB.position.set(1.6,7.5,0);AB.scale.setScalar(ASC);robot.add(AB);
+// —— 底座升降（六轴 + 升降方案）：机械臂底座沿竖直立柱升降 0~0.6 m；立柱为两节伸缩套筒 ——
+let LIFT=false,qL=0,qLc=0;const BLIFT_MAX=6,BLIFT_V=4;   // qL 目标 / qLc 当前升降高度（世界单位 = 10 cm）；速度 0.4 m/s
+const liftCol=new THREE.Group();liftCol.position.set(1.6,7.5,0);robot.add(liftCol);liftCol.visible=false;
+const liftOut=new THREE.Mesh(new THREE.BoxGeometry(3.4,1,3.4),new THREE.MeshStandardMaterial({color:0x3a424c,metalness:.5,roughness:.5})),liftIn=new THREE.Mesh(new THREE.BoxGeometry(2.9,1,2.9),new THREE.MeshStandardMaterial({color:0xaeb6c0,metalness:.6,roughness:.35}));
+liftCol.add(liftOut,liftIn);
+function applyLift(){AB.position.y=7.5+qLc;const h=Math.max(.001,qLc);liftOut.scale.y=Math.min(h,2.2);liftOut.position.y=liftOut.scale.y/2;liftIn.scale.y=h;liftIn.position.y=h/2+.0;liftCol.visible=LIFT&&qLc>.02}
 cyl(.85,.95,.18,dark,0,.09,0,AB);
 const j1=new THREE.Group();j1.position.y=.18;AB.add(j1);
 cyl(.7,.7,.5,shell,0,.25,0,j1);cyl(.72,.72,.08,acc,0,.5,0,j1);
@@ -1329,8 +1336,10 @@ let AVOID=false;   // 规划时避障总开关（默认关：避障规划还在�
 let CFFAIL=null;   // 调试：携带路径规划在第几个航点失败
 let HITLOG=null;  // 调试：记录是哪个部件撞了哪类障碍
 // —— 机械臂切换：七轴 ⇄ 六轴（FANUC M-20iD/35）；两套本体共用 J1–J7 骨架与工具总成，切换时重置到零位 ——
-function useArm(k,quiet){
-  if(k===ARMK&&!quiet)return;
+function useArm(k,quiet,lift){
+  lift=!!lift&&k===6;
+  if(k===ARMK&&!quiet&&lift===LIFT)return;
+  LIFT=lift;qL=qLc=0;applyLift();document.getElementById('liftR').style.display=lift?'':'none';document.getElementById('lftS').value=0;document.getElementById('lftV').textContent='0 cm';
   if(apS){apS=0;cmd=[0,0,0];apReturn=null}
   if(held.obj)releaseHeld();
   ARMK=k;const six=k===6;
@@ -1347,9 +1356,13 @@ function useArm(k,quiet){
   for(let i=0;i<NC;i++)setZ(i,0);
   buildPre();buildSg();
   document.getElementById('armT').textContent=six?'六轴机械臂 · FANUC M-20iD/35':'七轴机械臂';
-  document.querySelectorAll('#armK button').forEach(b=>b.classList.toggle('on',+b.dataset.k===k));
+  document.querySelectorAll('#armK button').forEach(b=>b.classList.toggle('on',b.dataset.k===(lift?'6L':String(k))));
 }
-document.querySelectorAll('#armK button').forEach(b=>b.onclick=()=>useArm(+b.dataset.k));
+document.querySelectorAll('#armK button').forEach(b=>b.onclick=()=>useArm(parseInt(b.dataset.k),false,b.dataset.k==='6L'));
+function setLift(h){qL=Math.max(0,Math.min(BLIFT_MAX,h));document.getElementById('lftS').value=Math.round(qL*10);document.getElementById('lftV').textContent=Math.round(qL*10)+' cm'}
+document.getElementById('lftS').oninput=e=>setLift(+e.target.value/10);
+const liftFor=cd=>LIFT?Math.max(0,Math.min(BLIFT_MAX,Math.round((cd.c.y-10)*.5*2)/2)):0;   // 按目标箱所在高度定升降量：底下两层不升，顶层升到最高
+const liftWait=cd=>{if(!LIFT)return false;setLift(liftFor(cd));return Math.abs(qLc-qL)>.02};   // 需要升降时返回 true：暂停本步，等底座到位后再规划
 function mkObb(){return{c:[0,0,0],a:[[1,0,0],[0,1,0],[0,0,1]],h:[0,0,0]}}
 function obbOfEntry(b,o,margin){   // 把 OCC 条目（部件局部盒）转成世界系有向盒
   const M=b.o.matrixWorld,e=M.elements,sc=M.getMaxScaleOnAxis();
@@ -1580,6 +1593,7 @@ function autoStep(dt){
     if(Math.abs(dx)<.08&&Math.abs(dz)<.08){cmd=[0,0,0];apS=3;say('规划抓取姿态…')}   // 到位精度 8 mm：规划时车位边缘有 2.5 cm 的余量检查，这里必须停准
     else{const f=v=>Math.sign(v)*Math.max(.15,Math.min(Math.min(2,SPD),Math.abs(v)/6*Math.min(2,SPD)));cmd=[Math.abs(dx)<.08?0:f(dx),Math.abs(dz)<.08?0:-f(dz),0]}   // 左移为正，故右移（z 增大）取负
   }else if(apS===3){
+    {const c0=apInfo.cands[apInfo.ci];if(c0&&liftWait(c0)){apMsg='底座升降到 '+Math.round(qL*10)+' cm…';return}}
     let pl=null;
     if(apInfo.tries===0&&!apInfo.picked){   // 底盘尽量不动：同一面同一层里先找不用挪车就能拾取的箱子，都够不着才去挪车
       const c0=apInfo.cands[apInfo.ci];let pick=apInfo.ci;
@@ -1766,7 +1780,8 @@ function loadStep(dt){
     if(Math.abs(dx)<.08&&Math.abs(dz)<.08){cmd=[0,0,0];ldS=3;say('规划…')}
     else{const f=v=>Math.sign(v)*Math.max(.15,Math.min(Math.min(2,SPD),Math.abs(v)/6*Math.min(2,SPD)));cmd=[Math.abs(dx)<.08?0:f(dx),Math.abs(dz)<.08?0:-f(dz),0]}
   }else if(ldS===3){
-    const cd=ldInfo.cd;let r=ldTry(cd,ldInfo.force);
+    const cd=ldInfo.cd;if(liftWait(cd)){ldMsg='底座升降到 '+Math.round(qL*10)+' cm…';return}
+    let r=ldTry(cd,ldInfo.force);
     if(!r){
       let pk=findParking(cd,ldInfo.force);
       if(!pk&&ldInfo.force==='top'){pk=findParking(cd,'front');if(pk)ldInfo.force='front'}
@@ -2010,6 +2025,7 @@ setEnv('gp');setChassis('B');
     fx=fx<1e9?fx-2.925:58.98;                          // 最外一排货物的外表面，或无货时的后壁
     pos.x=Math.min(pos.x,fx-.3-ex);
   }
+  if(LIFT&&Math.abs(qLc-qL)>1e-4){qLc+=Math.sign(qL-qLc)*Math.min(Math.abs(qL-qLc),BLIFT_V*dt*Math.min(SPD,2));applyLift()}
   updatePose(dt);
   pos.y=zy;robot.position.copy(pos);robot.rotation.order='YZX';robot.rotation.set(zr,yaw,zp);
 
