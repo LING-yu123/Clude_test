@@ -1,0 +1,401 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>三种机械臂方案对比：七轴 / 六轴 / 六轴+升降</title>
+<style>
+:root{
+  --bg:#f6f7f9;--card:#fff;--ink:#14181f;--sub:#5a6472;--line:#e1e5ea;
+  --c7:#0e9f8e;--c6:#e08a00;--c6l:#4f6bed;
+  --ok:#1f9d55;--warn:#d98e04;--bad:#d64545;--okbg:#e3f5ea;--warnbg:#fdf1d6;--badbg:#fbe3e3;
+  --stack:#c79a62;--stack2:#a9783f;--roof:#98a2b0;--floor:#6c7683;--body:#dfe4ea;--deck:#aab3be;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0f1318;--card:#171c23;--ink:#e8ecf1;--sub:#9aa5b3;--line:#262d37;
+  --c7:#3dd6c3;--c6:#ffb02e;--c6l:#8aa0ff;
+  --ok:#4cc27d;--warn:#f0b73a;--bad:#ef6b6b;--okbg:#14301f;--warnbg:#38300f;--badbg:#3a1a1a;
+  --stack:#8f6c42;--stack2:#7a5a35;--roof:#5b6574;--floor:#59626f;--body:#2b323c;--deck:#3b444f;}}
+:root[data-theme="dark"]{
+  --bg:#0f1318;--card:#171c23;--ink:#e8ecf1;--sub:#9aa5b3;--line:#262d37;
+  --c7:#3dd6c3;--c6:#ffb02e;--c6l:#8aa0ff;
+  --ok:#4cc27d;--warn:#f0b73a;--bad:#ef6b6b;--okbg:#14301f;--warnbg:#38300f;--badbg:#3a1a1a;
+  --stack:#8f6c42;--stack2:#7a5a35;--roof:#5b6574;--floor:#59626f;--body:#2b323c;--deck:#3b444f;}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.7 -apple-system,"PingFang SC","Microsoft YaHei",system-ui,sans-serif}
+.wrap{max-width:1180px;margin:0 auto;padding:0 16px 80px}
+header{padding:44px 0 18px}
+header .eyebrow{color:var(--sub);font-size:13px;letter-spacing:.08em}
+h1{font-size:clamp(26px,4.2vw,40px);line-height:1.2;margin:6px 0 10px;letter-spacing:-.01em}
+header p{max-width:860px;color:var(--sub);margin:0}
+h2{font-size:23px;margin:54px 0 6px;letter-spacing:-.005em}
+h2 .n{display:inline-block;min-width:28px;color:var(--sub);font-weight:500}
+.lead{color:var(--sub);margin:0 0 18px;max-width:860px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px}
+.grid{display:grid;gap:14px}
+.g3{grid-template-columns:repeat(3,1fr)}
+.g2{grid-template-columns:repeat(2,1fr)}
+@media(max-width:860px){.g3,.g2{grid-template-columns:1fr}}
+.tag{display:inline-block;font-size:12px;padding:2px 9px;border-radius:99px;color:#fff;font-weight:600}
+.t7{background:var(--c7)}.t6{background:var(--c6)}.t6l{background:var(--c6l)}
+.concl{display:grid;gap:14px;grid-template-columns:repeat(3,1fr)}
+@media(max-width:860px){.concl{grid-template-columns:1fr}}
+.concl .card h3{margin:8px 0 4px;font-size:17px}
+.concl .big{font-size:30px;font-weight:700;letter-spacing:-.02em;line-height:1.1}
+.concl small{color:var(--sub)}
+.concl ul{margin:8px 0 0;padding-left:18px;color:var(--ink)}
+.concl li{margin:2px 0}
+.bar{height:6px;border-radius:99px;background:var(--line);overflow:hidden;margin:6px 0}
+.bar i{display:block;height:100%;border-radius:99px}
+/* animation panels */
+.ctl{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;margin:10px 0 14px;font-size:13px;color:var(--sub)}
+.ctl label{display:flex;align-items:center;gap:6px}
+.ctl select,.ctl button{font:inherit;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:8px;padding:4px 9px;cursor:pointer}
+.ctl button.on{background:var(--ink);color:var(--bg)}
+.ctl input[type=range]{width:120px}
+.panels{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+@media(max-width:980px){.panels{grid-template-columns:1fr}}
+.pn{background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.pn h4{margin:0;padding:10px 14px 0;font-size:15px;display:flex;align-items:center;gap:8px}
+.pn canvas{display:block;width:100%;height:auto}
+.pn .st{padding:0 14px 12px;font-size:13px;color:var(--sub);min-height:44px}
+.pn .st b{color:var(--ink)}
+.maps{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+@media(max-width:980px){.maps{grid-template-columns:1fr}}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12.5px;color:var(--sub);margin:8px 0 0}
+.legend span::before{content:"";display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:6px;vertical-align:-1px;background:var(--c)}
+/* charts */
+.bars{display:grid;gap:8px}
+.brow{display:grid;grid-template-columns:150px 1fr;gap:10px;align-items:center;font-size:13px}
+.brow .lab{color:var(--sub)}
+.bset{display:grid;gap:3px}
+.bset div{height:18px;border-radius:5px;position:relative;width:0;transition:width 1.1s cubic-bezier(.2,.7,.2,1)}
+.bset div span{position:absolute;left:calc(100% + 6px);top:0;font-size:12px;color:var(--ink);white-space:nowrap}
+@media(max-width:560px){.brow{grid-template-columns:1fr}}
+.tbl{width:100%;border-collapse:collapse;font-size:13px}
+.tbl th,.tbl td{border-bottom:1px solid var(--line);padding:7px 8px;text-align:left;vertical-align:top}
+.tbl th{font-weight:600;color:var(--sub);font-size:12.5px}
+.scroll{overflow-x:auto}
+.mx td,.mx th{text-align:center;padding:4px 3px;font-size:12px}
+.mx td:first-child,.mx th:first-child{text-align:left;white-space:nowrap;padding-left:8px}
+.mx .c{border-radius:5px;display:block;padding:2px 0;min-width:27px;font-weight:600}
+.c.ok{background:var(--okbg);color:var(--ok)}
+.c.sk{background:var(--warnbg);color:var(--warn)}
+.c.no{background:var(--badbg);color:var(--bad)}
+.mx thead tr:first-child th{border-bottom:none}
+.mx .sep{border-left:2px solid var(--line)}
+.note{font-size:13px;color:var(--sub);margin-top:8px}
+.pros li::marker{color:var(--ok)}.cons li::marker{color:var(--bad)}
+.rec td:first-child{white-space:nowrap;font-weight:600}
+.callout{border-left:4px solid var(--c6l);background:var(--card);border-radius:0 12px 12px 0;padding:12px 16px;margin:14px 0;border-top:1px solid var(--line);border-right:1px solid var(--line);border-bottom:1px solid var(--line)}
+footer{margin-top:60px;color:var(--sub);font-size:12.5px;border-top:1px solid var(--line);padding-top:14px}
+@media(prefers-reduced-motion:reduce){.bset div{transition:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <div class="eyebrow">四舵轮 AMR 车厢装卸仿真 · 机械臂方案评估</div>
+  <h1>七轴、六轴、六轴 + 底座升降：哪一种更适合烟草车厢装卸？</h1>
+  <p>基于本仓库仿真器的实测结果：11 种车厢（含内宽 2.9 m、内高 2.7–2.9 m 的烟草厢货/半挂）× 3 种机械臂 × 车尾/右侧两种输送带位置 × 装车/卸货，共 132 组、累计约 2 万箱次。下面的动图是用真实杆长做的侧视运动学示意，帮助理解<em>为什么</em>会出现这些结果。</p>
+</header>
+
+<section>
+<h2><span class="n">0</span>结论先行</h2>
+<div class="concl" id="concl"></div>
+<div class="callout"><b>一句话选型：</b>追求最高可用度、不在意定制成本 → <b>七轴</b>；想用成熟工业臂（FANUC M-20iD/35）又要覆盖 2.9 m 宽、6–7 层的车厢 → <b>六轴 + 底座升降</b>；<b>纯六轴</b>只适合内宽 ≤ 2.7 m、输送带在车尾的车厢，遇到宽车厢或右侧输送带会明显够不着。</div>
+</section>
+
+<section>
+<h2><span class="n">1</span>动图：同一个循环，三种臂怎么够到不同层</h2>
+<p class="lead">侧视图，按真实尺寸绘制（1 格 = 10 cm）。机械臂从“搬运姿态”出发，把箱子送进当前层的空位：最上层用前吸（吸盘水平推入），其余层用顶吸（吸盘从上方下压），与仿真里的策略一致。够不着时红色标出，臂会伸到极限。</p>
+<div class="ctl">
+  <label>车厢高度
+    <select id="hSel"><option value="25">2.5 m</option><option value="27" selected>2.7 m（最常见）</option><option value="29">2.9 m</option></select></label>
+  <label>臂座到货面距离 <input id="dSl" type="range" min="6" max="20" step="0.5" value="12"><b id="dV">1.20 m</b></label>
+  <label>速度 <input id="spSl" type="range" min="0.3" max="2" step="0.1" value="1"></label>
+  <span>目标层：</span><span id="layBtns"></span>
+  <button id="autoBtn" class="on">自动循环</button>
+  <button id="pauseBtn">暂停</button>
+</div>
+<div class="panels">
+  <div class="pn"><h4><span class="tag t7">七轴</span>冗余臂</h4><canvas id="cv7" width="620" height="520"></canvas><div class="st" id="st7"></div></div>
+  <div class="pn"><h4><span class="tag t6">六轴</span>FANUC M-20iD/35</h4><canvas id="cv6" width="620" height="520"></canvas><div class="st" id="st6"></div></div>
+  <div class="pn"><h4><span class="tag t6l">六轴 + 升降</span>底座 0–60 cm</h4><canvas id="cv6l" width="620" height="520"></canvas><div class="st" id="st6l"></div></div>
+</div>
+</section>
+
+<section>
+<h2><span class="n">2</span>可达性地图：哪一层、多远能够到</h2>
+<p class="lead">横轴是臂座到货面的距离，纵轴是层数（下 → 上），随上面的“车厢高度”实时重算。绿色 = 够得着；黄色数字 = 需要把底座升到该高度（cm）；灰色 = 够不着。这里只画<b>顶吸</b>（最上层本来就是前吸）。第 5 层（最上层的下一层）在 2.7 m 高的车里顶吸三种臂都够不着，仿真里会自动改前吸（上面动图里就是这样）。它只看侧视平面，不含左右方向，所以<b>宽车厢的最外列</b>（第 3 节）比这里更难。</p>
+<div class="maps">
+  <div class="pn"><h4><span class="tag t7">七轴</span></h4><canvas id="mp7" width="480" height="300"></canvas></div>
+  <div class="pn"><h4><span class="tag t6">六轴</span></h4><canvas id="mp6" width="480" height="300"></canvas></div>
+  <div class="pn"><h4><span class="tag t6l">六轴 + 升降</span></h4><canvas id="mp6l" width="480" height="300"></canvas></div>
+</div>
+<div class="legend"><span style="--c:var(--ok)">够得着</span><span style="--c:var(--warn)">需升降（数字 = cm）</span><span style="--c:var(--line)">够不着</span></div>
+<p class="note" id="mapNote"></p>
+</section>
+
+<section>
+<h2><span class="n">3</span>实测数据：132 组仿真</h2>
+<p class="lead">每组都是“整车从满到空 / 从空到满”的完整自动循环。右侧输送带 = 输送带在机器人右侧、箱子横放；车尾 = 输送带在机器人正后方。</p>
+
+<h3 style="margin:20px 0 6px;font-size:17px">3.1 完成度</h3>
+<div class="grid g3" id="done"></div>
+
+<h3 style="margin:26px 0 6px;font-size:17px">3.2 平均每箱耗时（仿真秒，越短越好）</h3>
+<div class="card"><div class="bars" id="speed"></div>
+<p class="note">取 11 种车厢的平均（只统计有结果的组）。卸货时纯六轴在多组中提前停机，耗时只反映它卸下的那部分箱子。</p></div>
+
+<h3 style="margin:26px 0 6px;font-size:17px">3.3 逐车型明细</h3>
+<div class="card scroll"><table class="tbl mx" id="mx"></table>
+<div class="legend" style="margin-top:10px"><span style="--c:var(--ok)">✓ 全部完成</span><span style="--c:var(--warn)">数字 = 装车时被跳过的箱位</span><span style="--c:var(--bad)">数字 = 卸货中途停机时已卸箱数</span></div></div>
+</section>
+
+<section>
+<h2><span class="n">4</span>分析：为什么会这样</h2>
+<div class="grid g2">
+  <div class="card"><h3 style="margin-top:0"><span class="tag t7">七轴</span> 冗余自由度换来的鲁棒性</h3>
+    <ul class="pros">
+      <li>末端位姿固定时，肘部/前臂还有一个自由度可调（仿真里扫描 θ3 冗余角）。这让它能<b>绕开货垛、侧壁、车顶</b>，也能避开关节极限和肩部奇异，所以几乎所有车型、所有输送带位置都能完成。</li>
+      <li>杆长是为车厢专门优化的（短而粗的三段臂），回转半径小，在窄车厢里转身余量大。</li>
+    </ul>
+    <ul class="cons">
+      <li>市面上这个负载等级（≥ 30 kg）的七轴臂很少，往往要定制；成本、维护、备件都不如成熟六轴。</li>
+      <li>冗余求解要扫描更多构型，规划更慢（仿真里已用解析 IK + 缓存压到可接受）。</li>
+    </ul></div>
+  <div class="card"><h3 style="margin-top:0"><span class="tag t6">六轴</span> 成熟、便宜，但“一条路走到黑”</h3>
+    <ul class="pros">
+      <li>FANUC M-20iD/35：负载 35 kg、臂展 1831 mm、IP67，是工业现场最成熟的一类，采购、备件、标定、安全认证都现成。</li>
+      <li>车尾输送带、窄车厢（内宽 ≤ 2.7 m）下表现接近七轴。</li>
+    </ul>
+    <ul class="cons">
+      <li>没有冗余：末端位姿给定，臂的构型基本唯一，碰壁/碰顶就只能“放弃该箱位”。</li>
+      <li>肩部在 1.24 m 高（比七轴高 0.37 m），对上层有利，但近处下层需要大幅折叠；输送带在右侧、内宽 2.9 m 时机器人被挤向左壁，臂展 1.83 m <b>够不到最右侧一列</b>。</li>
+      <li>实测：右侧输送带 + 7 列车厢，卸货在卸完最外一面的一部分后就停机（只卸了 35–36 箱 / 168）。</li>
+    </ul></div>
+  <div class="card"><h3 style="margin-top:0"><span class="tag t6l">六轴 + 升降</span> 用一个直线轴补回大部分差距</h3>
+    <ul class="pros">
+      <li>沿用成熟六轴臂，底座在 0–60 cm 竖直升降。升降让顶吸时“手腕不用折得那么狠”，上层、远处的箱子变得好够。</li>
+      <li>实测卸货 22/22 全部完成（与七轴持平），车尾装车平均每箱 10.75 s，比不带升降的六轴快 14%，也比七轴快 8%。</li>
+      <li>升降只在“规划不到”或中间层才动，平时不增加节拍。</li>
+    </ul>
+    <ul class="cons">
+      <li>升降立柱要承受臂的整个倾覆力矩：刚度、重复定位精度、成本、安全（急停防坠）都要额外设计。</li>
+      <li>车顶限制：升高会压缩顶吸的上方空间，所以<b>最上层不升</b>；仿真里立柱与车顶没有碰撞检测，实际要加限位。</li>
+      <li>仍然是六轴：输送带在右侧时，装车在 7 列的宽车厢里仍有 2–12 个最外/最上箱位够不着被跳过（车尾输送带下 22 组里零跳位）。</li>
+    </ul></div>
+  <div class="card"><h3 style="margin-top:0">车厢尺寸怎么影响选择</h3>
+    <ul>
+      <li><b>内宽</b>决定列数：2.9 m → 7 列，机械臂要横向够到 ±1.4 m 之外的最外列，同时输送带还要占掉一侧的空间。右侧输送带时机器人只能偏向左壁，右侧最外列离肩 11+ 个单位，六轴够不到。</li>
+      <li><b>内高</b>决定层数：2.9 m → 7 层，最上层前吸时手臂要整个抬高、手腕水平推入，六轴缺少调整手段，13.5 m 加高车（7 层）车尾装车就出现了跳位（纯六轴 4 个，七轴和六轴+升降为 0）。</li>
+      <li><b>车长</b>几乎不影响可达性，只影响输送线长度和行走时间；长车的耗时主要多在行走。</li>
+    </ul>
+    <div class="note">“最外列”和“最上层”是所有方案的共同难点，区别在于七轴 / 六轴+升降能想办法，纯六轴不能。</div></div>
+</div>
+</section>
+
+<section>
+<h2><span class="n">5</span>结论与选型建议</h2>
+<div class="card scroll"><table class="tbl rec">
+<thead><tr><th>场景</th><th>推荐</th><th>理由</th></tr></thead>
+<tbody>
+<tr><td>2.9 m 宽 / 2.7–2.9 m 高，输送带在右侧</td><td><span class="tag t7">七轴</span> 或 <span class="tag t6l">六轴+升降</span></td><td>纯六轴在这里卸货会停机；七轴全部完成，六轴+升降卸货全部完成、装车少量跳位。</td></tr>
+<tr><td>输送带在车尾，各种内宽</td><td><span class="tag t6l">六轴+升降</span></td><td>装车最快（10.75 s/箱）、卸货全部完成，且用成熟臂。纯六轴仅在 13.5 m 加高车（7 层）上出问题。</td></tr>
+<tr><td>内宽 ≤ 2.7 m、6 层以内、输送带车尾，预算有限</td><td><span class="tag t6">六轴</span></td><td>此范围内三者都能完成，纯六轴最便宜、最易维护。</td></tr>
+<tr><td>追求极限可用度、车型杂、不想有“跳箱位”</td><td><span class="tag t7">七轴</span></td><td>装车 22 组里 21 组零跳位，卸货 22/22；冗余自由度是通用性的来源。</td></tr>
+</tbody></table></div>
+
+<div class="callout" style="border-left-color:var(--c7)"><b>综合判断：</b>在“既要覆盖烟草车厢的 2.9 m 宽、2.7 m 高主流尺寸，又要走成熟工业臂”的前提下，<b>六轴 + 底座升降</b>是性价比最高的方案，性能逼近七轴；如果项目允许定制机械臂，<b>七轴</b>依然是上限最高、最省心的选择。<b>纯六轴</b>不建议作为通用方案。</div>
+
+<h3 style="margin:22px 0 6px;font-size:17px">局限与后续</h3>
+<ul>
+  <li>以上全部来自仿真：节拍是仿真秒，没有计入真实的加减速、吸盘建压、视觉定位和安全停等时间，数值适合横向比较，不能直接当作现场节拍。</li>
+  <li>动图和可达性地图是<b>侧视平面</b>的运动学示意（用真实杆长，但没有碰撞到货垛的细节，也没有左右方向），可达性的“左右”部分由 3D 仿真实测体现。</li>
+  <li>升降立柱和车顶之间没有碰撞检测；真实方案需要加高度限位、立柱刚度/误差分析与急停防坠。</li>
+  <li>车长清单来自常见规格估计，内宽 2.5–2.9 m、内高 2.5–2.9 m 来自现场同事提供的范围；若有实际车型清单，应替换后重跑。</li>
+  <li>右侧输送带 + 2.9 m 宽车厢仍有少量最外/最上箱位够不着，可通过加宽输送带避让、或让机器人在最后一列前暂停输送带来改善（未实现）。</li>
+</ul>
+</section>
+
+<footer>数据来自仓库内仿真（单文件 HTML + three.js），矩阵回归脚本不在仓库内；本页所有动画均在浏览器本地计算，无外部依赖。</footer>
+</div>
+
+<script>
+/* ===== 实测数据：[op,env,arm,belt,n,full,sec,ok,skip] ===== */
+const DATA=[["L","c40h","6L","R",144,144,1542,1,0],["L","c40h","6L","S",144,144,1722,1,0],["L","c40h","6","R",144,144,1848,1,0],["L","c40h","6","S",140,144,1951,1,4],["L","c40h","7","R",144,144,1762,1,0],["L","c40h","7","S",144,144,1755,1,0],["L","gp","6L","R",144,144,1507,1,0],["L","gp","6L","S",144,144,1672,1,0],["L","gp","6","R",144,144,1507,1,0],["L","gp","6","S",144,144,1700,1,0],["L","gp","7","R",144,144,1466,1,0],["L","gp","7","S",144,144,1474,1,0],["L","hq","6L","R",144,144,1532,1,0],["L","hq","6L","S",144,144,1714,1,0],["L","hq","6","R",144,144,1837,1,0],["L","hq","6","S",140,144,1941,1,4],["L","hq","7","R",144,144,1752,1,0],["L","hq","7","S",144,144,1744,1,0],["L","t125","6L","R",168,168,1783,1,0],["L","t125","6L","S",164,168,1910,1,4],["L","t125","6","R",168,168,2156,1,0],["L","t125","6","S",164,168,2232,1,4],["L","t125","7","R",168,168,2058,1,0],["L","t125","7","S",168,168,2084,1,0],["L","t135","6L","R",168,168,1784,1,0],["L","t135","6L","S",164,168,1912,1,4],["L","t135","6","R",168,168,2158,1,0],["L","t135","6","S",164,168,2234,1,4],["L","t135","7","R",168,168,2059,1,0],["L","t135","7","S",168,168,2086,1,0],["L","t135h","6L","R",196,196,2478,1,0],["L","t135h","6L","S",184,196,2366,1,12],["L","t135h","6","R",192,196,2641,1,4],["L","t135h","6","S",184,196,2642,1,12],["L","t135h","7","R",196,196,2372,1,0],["L","t135h","7","S",192,196,2282,1,4],["L","t175","6L","R",168,168,1791,1,0],["L","t175","6L","S",164,168,1918,1,4],["L","t175","6","R",168,168,2165,1,0],["L","t175","6","S",164,168,2241,1,4],["L","t175","7","R",168,168,2066,1,0],["L","t175","7","S",168,168,2093,1,0],["L","t42","6L","R",72,72,751,1,0],["L","t42","6L","S",70,72,807,1,2],["L","t42","6","R",72,72,858,1,0],["L","t42","6","S",70,72,888,1,2],["L","t42","7","R",72,72,760,1,0],["L","t42","7","S",72,72,761,1,0],["L","t68","6L","R",144,144,1486,1,0],["L","t68","6L","S",144,144,1655,1,0],["L","t68","6","R",144,144,1783,1,0],["L","t68","6","S",144,144,1930,1,0],["L","t68","7","R",144,144,1503,1,0],["L","t68","7","S",144,144,1520,1,0],["L","t76","6L","R",168,168,1777,1,0],["L","t76","6L","S",164,168,1906,1,4],["L","t76","6","R",168,168,2154,1,0],["L","t76","6","S",164,168,2303,1,4],["L","t76","7","R",168,168,2035,1,0],["L","t76","7","S",168,168,2068,1,0],["L","t96","6L","R",168,168,1778,1,0],["L","t96","6L","S",164,168,1905,1,4],["L","t96","6","R",168,168,2152,1,0],["L","t96","6","S",164,168,2227,1,4],["L","t96","7","R",168,168,2053,1,0],["L","t96","7","S",168,168,2080,1,0],["U","c40h","6L","R",144,144,1308,1,0],["U","c40h","6L","S",144,144,1526,1,0],["U","c40h","6","R",144,144,1329,1,0],["U","c40h","6","S",144,144,1461,1,0],["U","c40h","7","R",144,144,1286,1,0],["U","c40h","7","S",144,144,1333,1,0],["U","gp","6L","R",144,144,1294,1,0],["U","gp","6L","S",144,144,1493,1,0],["U","gp","6","R",144,144,1283,1,0],["U","gp","6","S",144,144,1484,1,0],["U","gp","7","R",144,144,1256,1,0],["U","gp","7","S",144,144,1354,1,0],["U","hq","6L","R",144,144,1298,1,0],["U","hq","6L","S",144,144,1516,1,0],["U","hq","6","R",144,144,1318,1,0],["U","hq","6","S",144,144,1449,1,0],["U","hq","7","R",144,144,1276,1,0],["U","hq","7","S",144,144,1323,1,0],["U","t125","6L","R",168,168,1505,1,0],["U","t125","6L","S",168,168,1773,1,0],["U","t125","6","R",168,168,1582,1,0],["U","t125","6","S",36,168,376,0,0],["U","t125","7","R",168,168,1491,1,0],["U","t125","7","S",168,168,1527,1,0],["U","t135","6L","R",168,168,1507,1,0],["U","t135","6L","S",168,168,1774,1,0],["U","t135","6","R",168,168,1583,1,0],["U","t135","6","S",36,168,377,0,0],["U","t135","7","R",168,168,1492,1,0],["U","t135","7","S",168,168,1530,1,0],["U","t135h","6L","R",196,196,1918,1,0],["U","t135h","6L","S",196,196,2132,1,0],["U","t135h","6","R",42,196,375,0,0],["U","t135h","6","S",35,196,372,0,0],["U","t135h","7","R",196,196,1737,1,0],["U","t135h","7","S",196,196,1746,1,0],["U","t175","6L","R",168,168,1514,1,0],["U","t175","6L","S",168,168,1781,1,0],["U","t175","6","R",168,168,1590,1,0],["U","t175","6","S",36,168,384,0,0],["U","t175","7","R",168,168,1499,1,0],["U","t175","7","S",168,168,1536,1,0],["U","t42","6L","R",72,72,641,1,0],["U","t42","6L","S",72,72,719,1,0],["U","t42","6","R",72,72,651,1,0],["U","t42","6","S",72,72,713,1,0],["U","t42","7","R",72,72,618,1,0],["U","t42","7","S",72,72,628,1,0],["U","t68","6L","R",144,144,1299,1,0],["U","t68","6L","S",144,144,1462,1,0],["U","t68","6","R",144,144,1300,1,0],["U","t68","6","S",144,144,1427,1,0],["U","t68","7","R",144,144,1242,1,0],["U","t68","7","S",144,144,1284,1,0],["U","t76","6L","R",168,168,1522,1,0],["U","t76","6L","S",168,168,1762,1,0],["U","t76","6","R",168,168,1551,1,0],["U","t76","6","S",36,168,371,0,0],["U","t76","7","R",168,168,1487,1,0],["U","t76","7","S",168,168,1512,1,0],["U","t96","6L","R",168,168,1500,1,0],["U","t96","6L","S",168,168,1768,1,0],["U","t96","6","R",168,168,1577,1,0],["U","t96","6","S",36,168,371,0,0],["U","t96","7","R",168,168,1485,1,0],["U","t96","7","S",168,168,1523,1,0]];
+const VEH=[['gp','20GP 标柜','2.35×2.39'],['hq','20HQ 高柜','2.35×2.70'],['c40h','40HQ 高柜','2.35×2.70'],['t42','4.2 m 厢货','2.5×2.5'],['t68','6.8 m 厢货','2.7×2.6'],['t76','7.6 m 厢货','2.8×2.7'],['t96','9.6 m 厢货','2.9×2.7'],['t125','12.5 m 厢货','2.9×2.7'],['t135','13.5 m 半挂','2.9×2.7'],['t135h','13.5 m 半挂加高','2.9×2.9'],['t175','17.5 m 半挂','2.9×2.7']];
+const ARMS=[['7','七轴','var(--c7)'],['6','六轴','var(--c6)'],['6L','六轴+升降','var(--c6l)']];
+const D=DATA.map(r=>({op:r[0],env:r[1],arm:r[2],belt:r[3],n:r[4],full:r[5],sec:r[6],ok:!!r[7],skip:r[8]}));
+const $=id=>document.getElementById(id);
+
+/* ===== 结论卡 + 完成度 ===== */
+function stat(arm,op){const a=D.filter(r=>r.arm===arm&&r.op===op);return{tot:a.length,clean:a.filter(r=>r.ok&&!r.skip).length,skip:a.filter(r=>r.ok&&r.skip).length,stop:a.filter(r=>!r.ok).length,skipped:a.reduce((s,r)=>s+r.skip,0)}}
+function spb(arm,op,belt){const a=D.filter(r=>r.arm===arm&&r.op===op&&(!belt||r.belt===belt)&&r.n&&r.sec&&r.sec<7000);return a.reduce((s,r)=>s+r.sec/r.n,0)/Math.max(1,a.length)}
+const CT={'7':{t:'t7',name:'七轴',sub:'上限最高，通用性最强',pts:['装车 22 组中 21 组零跳位','卸货 22/22 完成','代价：定制臂，成本与维护']},
+          '6':{t:'t6',name:'六轴',sub:'最便宜，但覆盖面窄',pts:['卸货 7 组提前停机','装车 10 组有跳位（共 46 个，几乎都在右侧输送带）','适合：窄车厢 + 车尾输送带']},
+          '6L':{t:'t6l',name:'六轴+升降',sub:'成熟臂 + 直线轴，性价比最高',pts:['卸货 22/22 完成','车尾装车最快','代价：立柱刚度/成本，最外列仍有跳位']}};
+$('concl').innerHTML=ARMS.map(([k,n,c])=>{const L=stat(k,'L'),U=stat(k,'U'),sc=Math.floor(((L.clean+L.skip*.8+U.clean)/(L.tot+U.tot))*100);
+ return`<div class="card"><span class="tag ${CT[k].t}">${n}</span><div class="big" style="color:${c}">${sc}<small style="font-size:15px;font-weight:500"> / 100</small></div><small>综合完成度（零跳位=1，有跳位=0.8，停机=0）</small><div class="bar"><i style="width:${sc}%;background:${c}"></i></div><h3>${CT[k].sub}</h3><ul>${CT[k].pts.map(p=>`<li>${p}</li>`).join('')}</ul></div>`}).join('');
+$('done').innerHTML=ARMS.map(([k,n,c])=>{const L=stat(k,'L'),U=stat(k,'U');
+ const row=(lab,s)=>`<div style="margin:6px 0"><div style="display:flex;justify-content:space-between;font-size:13px"><span>${lab}</span><span style="color:var(--sub)">${s.clean} 全完成 · ${s.skip} 跳位 · ${s.stop} 停机</span></div><div class="bar" style="display:flex;height:9px"><i style="width:${s.clean/s.tot*100}%;background:var(--ok);border-radius:0"></i><i style="width:${s.skip/s.tot*100}%;background:var(--warn);border-radius:0"></i><i style="width:${s.stop/s.tot*100}%;background:var(--bad);border-radius:0"></i></div></div>`;
+ return`<div class="card"><span class="tag ${CT[k].t}">${n}</span>${row('装车（22 组）',L)}${row('卸货（22 组）',U)}</div>`}).join('');
+
+/* ===== 耗时条形图 ===== */
+const SP=[['装车 · 车尾','L','R'],['装车 · 右侧','L','S'],['卸货 · 车尾','U','R'],['卸货 · 右侧','U','S']];
+const mxs=Math.max(...SP.flatMap(([,o,b])=>ARMS.map(([k])=>spb(k,o,b))));
+$('speed').innerHTML=SP.map(([lab,o,b])=>`<div class="brow"><div class="lab">${lab}</div><div class="bset">${ARMS.map(([k,n,c])=>{const v=spb(k,o,b);return`<div data-w="${v/mxs*88}" style="background:${c}"><span>${n} ${v.toFixed(2)} s/箱</span></div>`}).join('')}</div></div>`).join('');
+const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){e.target.querySelectorAll('[data-w]').forEach(b=>b.style.width=b.dataset.w+'%');io.unobserve(e.target)}}),{threshold:.2});io.observe($('speed'));
+
+/* ===== 逐车型矩阵 ===== */
+(function(){
+  const cols=[];for(const op of['L','U'])for(const belt of['R','S'])for(const a of ARMS)cols.push([op,belt,a[0]]);
+  let h='<thead><tr><th rowspan="2">车型 / 内宽×高 (m)</th>';
+  for(const op of['L','U'])for(const belt of['R','S'])h+=`<th colspan="3" class="sep">${op==='L'?'装车':'卸货'} · ${belt==='R'?'车尾':'右侧'}</th>`;
+  h+='</tr><tr>';
+  for(const c of cols)h+=`<th class="${c[2]==='7'?'sep':''}" style="color:${ARMS.find(a=>a[0]===c[2])[2]}">${c[2]==='6L'?'6+':c[2]==='6'?'6':'7'}</th>`;
+  h+='</tr></thead><tbody>';
+  for(const [e,n,dim] of VEH){
+    h+=`<tr><td>${n} <span style="color:var(--sub)">${dim}</span></td>`;
+    for(const c of cols){
+      const r=D.find(x=>x.env===e&&x.op===c[0]&&x.belt===c[1]&&x.arm===c[2]);
+      let cell='<span class="c no">–</span>';
+      if(r){ if(c[0]==='L')cell=r.skip?`<span class="c sk" title="${r.n}/${r.full} 箱">${r.skip}</span>`:'<span class="c ok">✓</span>';
+             else cell=r.ok?'<span class="c ok">✓</span>':`<span class="c no" title="卸下 ${r.n}/${r.full}">${r.n}</span>`}
+      h+=`<td class="${c[2]==='7'?'sep':''}">${cell}</td>`}
+    h+='</tr>'}
+  $('mx').innerHTML=h+'</tbody>';
+})();
+
+/* ===== 平面运动学 ===== */
+const A7={a:8,b:6,c:7.7,sy:9.06,sx:1.6,T:4.1,name:'7'},A6={a:7.8,b:8.5,c:0,sy:12.75,sx:2.61,T:4.5,name:'6'};   // 肩部位置、杆长、腕心到吸盘面距离（吸盘板伸出时）均取自仿真器实测   // 单位 10 cm；七轴三段杆 + 吸盘总成；六轴两段杆 + 腕/吸盘
+const BX=1.6,DECK=7.5,BOXW=5.85;
+function cfg(){const H=+$('hSel').value,NL=Math.floor((H-.4)/3.85),hc=Math.min(4.6,(H-.4)/NL);return{H,NL,hc,roof:H}}
+let CF=cfg();
+function ik2(S,P,a,b,up){const dx=P[0]-S[0],dy=P[1]-S[1],d=Math.hypot(dx,dy);if(d>a+b-.15||d<Math.abs(a-b)+.15)return null;
+  const ca=(a*a+d*d-b*b)/(2*a*d),al=Math.acos(Math.max(-1,Math.min(1,ca))),bs=Math.atan2(dy,dx),t=bs+(up?al:-al);
+  return[S[0]+a*Math.cos(t),S[1]+a*Math.sin(t)]}
+function solve(arm,lift,tip,dir,roof,prevPhi){   // dir: 工具方向（吸盘朝向）；返回 {pts, phi} 或 null
+  const S=[arm.sx,arm.sy+lift],W=[tip[0]-dir[0]*arm.T,tip[1]-dir[1]*arm.T];
+  const okRoof=(p)=>p[1]<=roof+ROOFX;
+  const tryE=(F,pts0)=>{for(const up of[true,false]){const E=ik2(S,F,arm.a,arm.b,up);if(!E)continue;if(!okRoof(E))continue;if(!up&&(E[1]<DECK+1||E[0]>BX+arm.a))continue;return E}return null};
+  if(arm.c===0){if(!okRoof(W))return null;const E=tryE(W);if(!E)return null;return{pts:[S,E,W,tip],phi:0}}
+  let best=null,bs=1e9;
+  for(let p=-175;p<=175;p+=5){const ph=p*Math.PI/180,F=[W[0]-arm.c*Math.cos(ph),W[1]-arm.c*Math.sin(ph)];if(!okRoof(F)||!okRoof(W))continue;
+    const E=tryE(F);if(!E)continue;let sc=prevPhi==null?Math.abs(p+20)*.01:Math.min(Math.abs(p-prevPhi),360-Math.abs(p-prevPhi));if(sc<bs){bs=sc;best={pts:[S,E,F,W,tip],phi:p}}}
+  return best}
+const PCs=[6,3,1.5,.8];let ROOFX=0;   // 几何上限：关节不得高过车顶（仿真器规划时并未做这项检查，故此图在顶层比仿真略保守）
+function slotTargets(l,D,cf,fb){   // 第 l 层（0 起）：返回 {mode, pre, contact, ok? } 候选
+  const xf=BX+D;if(l>=cf.NL-1){const yc=cf.hc*(l+.5);return[{mode:'front',dir:[1,0],pre:[xf-6,yc],hit:[xf-.25,yc]}]}
+  const yt=cf.hc*(l+1)-.05,xc=xf+BOXW/2,yc=cf.hc*(l+.5);return[...PCs.map(pc=>({mode:'top',dir:[0,-1],pre:[xc,yt+pc],hit:[xc,yt+.25]})),...(fb?[{mode:'front',fb:true,dir:[1,0],pre:[xf-6,yc],hit:[xf-.25,yc]}]:[])]}   // 顶吸够不着时改前吸（仿真里 findParking 的回退策略）
+function feasible(arm,lift,l,D,cf,fb){for(const t of slotTargets(l,D,cf,fb)){const a=solve(arm,lift,t.pre,t.dir,cf.roof),b=a&&solve(arm,lift,t.hit,t.dir,cf.roof);if(a&&b)return t}return null}
+function needLift(arm,l,D,cf,allowLift,fb){const lifts=allowLift?[0,.5,1,1.5,2,2.5,3,3.5,4,4.5,5,5.5,6]:[0];for(const L of lifts){const t=feasible(arm,L,l,D,cf,fb);if(t)return{lift:L,t}}return null}
+
+/* ===== 动图 ===== */
+const PN=[{k:'7',arm:A7,cv:$('cv7'),st:$('st7'),col:'--c7',lift:false},{k:'6',arm:A6,cv:$('cv6'),st:$('st6'),col:'--c6',lift:false},{k:'6L',arm:A6,cv:$('cv6l'),st:$('st6l'),col:'--c6l',lift:true}];
+let curLayer=0,autoOn=true,paused=false,tcyc=0,SPD=1;
+const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+function layBtns(){const el=$('layBtns');el.innerHTML='';for(let i=0;i<CF.NL;i++){const b=document.createElement('button');b.textContent=i+1;b.onclick=()=>{autoOn=false;$('autoBtn').classList.remove('on');curLayer=i;tcyc=0};b.dataset.i=i;el.appendChild(b)}}
+$('autoBtn').onclick=()=>{autoOn=!autoOn;$('autoBtn').classList.toggle('on',autoOn)};
+$('pauseBtn').onclick=()=>{paused=!paused;$('pauseBtn').classList.toggle('on',paused);$('pauseBtn').textContent=paused?'继续':'暂停'};
+$('hSel').onchange=()=>{CF=cfg();curLayer=0;layBtns();tcyc=0;drawMaps()};
+$('dSl').oninput=()=>{$('dV').textContent=(+$('dSl').value/10).toFixed(2)+' m';tcyc=0;drawMaps()};
+$('spSl').oninput=()=>SPD=+$('spSl').value;
+layBtns();
+
+const lerp=(a,b,t)=>a+(b-a)*t,ease=t=>t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2;
+const HOME=[BX+7,17];
+function planPanel(p){   // 为当前层规划一次动作：升降量与各航点
+  const D=+$('dSl').value,l=curLayer,r=needLift(p.arm,l,D,CF,p.lift,true);
+  if(r)return{ok:true,lift:r.lift,t:r.t};
+  const t=slotTargets(l,D,CF,true)[0];return{ok:false,lift:p.lift?6:0,t}}
+function clampSolve(arm,lift,tip,dir,roof,prev){let s=solve(arm,lift,tip,dir,roof,prev);if(s)return{s,ex:false};
+  const S=[arm.sx,arm.sy+lift];let lo=0,hi=1,best=null;for(let i=0;i<14;i++){const m=(lo+hi)/2,tp=[S[0]+(tip[0]-S[0])*m,S[1]+(tip[1]-S[1])*m],r=solve(arm,lift,tp,dir,roof,prev);if(r){best=r;lo=m}else hi=m}
+  return{s:best,ex:true}}
+function seg(t,a,b){return Math.max(0,Math.min(1,(t-a)/(b-a)))}
+const TCYC=7.2;
+function frameFor(p,plan,t,lastPhi){   // 返回 {pts,tip,held,lift,phase,reach}
+  const dirT=plan.t.dir,home=HOME,pre=plan.t.pre,hit=plan.t.hit;
+  const dirH=[0,-1];let tip,dir,phase,held=true,lift=p.lift?plan.lift:0;
+  const kp=[[0,1.1,home,pre],[1.1,2.2,pre,hit],[2.2,2.8,hit,hit],[2.8,3.8,hit,pre],[3.8,5.6,pre,home],[5.6,7.2,home,home]];
+  for(const [a,b,x,y] of kp){if(t>=a&&t<=b){const k=ease(seg(t,a,b));tip=[lerp(x[0],y[0],k),lerp(x[1],y[1],k)];break}}
+  if(!tip)tip=home.slice();
+  const w=t<1.1?seg(t,0,1.1):t<3.8?1:t<5.6?1-seg(t,3.8,5.6):0;dir=[lerp(dirH[0],dirT[0],ease(w)),lerp(dirH[1],dirT[1],ease(w))];const dl=Math.hypot(dir[0],dir[1])||1;dir=[dir[0]/dl,dir[1]/dl];
+  phase=t<1.1?'带箱前往货面':t<2.2?(plan.t.mode==='front'?'前吸：水平推入空位':'顶吸：从上方下压'):t<2.8?'释放，箱子入位':t<3.8?'退出':t<5.6?'回搬运位':'去输送带取下一箱';
+  held=t<2.8||t>=5.2;
+  // 升降：在 0–1.1 s 内由上一次高度过渡到本层所需高度
+  if(p.lift){const from=p.prevLift==null?0:p.prevLift;lift=lerp(from,plan.lift,ease(seg(t,0,1.1)))}
+  const r=clampSolve(p.arm,lift,tip,dir,CF.roof,lastPhi);
+  return{pts:r.s?r.s.pts:null,phi:r.s?r.s.phi:lastPhi,tip,held,lift,phase,ex:r.ex&&t>=1.1&&t<3.8,dir}}
+function draw(p,fr,plan){
+  const cv=p.cv,c=cv.getContext('2d'),W=cv.width,Hh=cv.height,X0=-14,X1=34,sc=W/(X1-X0),Y=y=>Hh-18-y*sc,Xp=x=>(x-X0)*sc;
+  c.clearRect(0,0,W,Hh);
+  const col=css(p.col),stack=css('--stack'),stack2=css('--stack2'),roofC=css('--roof'),floorC=css('--floor'),bodyC=css('--body'),deck=css('--deck'),ink=css('--ink'),sub=css('--sub'),bad=css('--bad'),ok=css('--ok');
+  const D=+$('dSl').value,xf=BX+D,l=curLayer;
+  // 车厢：地板、车顶
+  c.fillStyle=floorC;c.fillRect(0,Y(0),W,3);
+  c.fillStyle=roofC;c.fillRect(Xp(xf-30),Y(CF.roof),W,3);
+  c.fillStyle=roofC;c.globalAlpha=.12;c.fillRect(Xp(xf-30),Y(CF.roof),W,(CF.roof)*sc);c.globalAlpha=1;
+  // 货垛：当前面之后一面（全满）+ 当前面 l 层以下
+  const bw=BOXW*sc,bh=CF.hc*sc;
+  for(let s=0;s<3;s++)for(let ly=0;ly<CF.NL;ly++){const x=xf+(s?BOXW*s:0);if(s===0&&ly>=l)continue;c.fillStyle=(ly+s)%2?stack:stack2;c.fillRect(Xp(x)+1,Y((ly+1)*CF.hc)+1,bw-2,bh-2)}
+  // 目标空位
+  c.setLineDash([5,4]);c.strokeStyle=fr.ex?bad:ok;c.lineWidth=2;c.strokeRect(Xp(xf)+2,Y((l+1)*CF.hc)+2,bw-4,bh-4);c.setLineDash([]);
+  // 车体与轮子
+  c.fillStyle=bodyC;c.strokeStyle=sub;c.lineWidth=1;c.beginPath();c.roundRect(Xp(-6),Y(DECK),12*sc,(DECK-1)*sc,6);c.fill();c.stroke();
+  c.fillStyle=ink;[-4,4].forEach(x=>{c.beginPath();c.arc(Xp(x),Y(1.6),1.6*sc,0,7);c.fill()});
+  // 输送带（车尾，示意）
+  c.fillStyle=deck;c.fillRect(Xp(-14),Y(DECK),8*sc,5);
+  // 升降立柱 + 基座
+  const lift=fr.lift,S=p.arm.sy;
+  if(p.k==='6'||p.k==='6L'){c.fillStyle=css('--deck');c.fillRect(Xp(BX-1.7),Y(DECK+p.arm.sy-DECK+lift),3.4*sc,(p.arm.sy-DECK+lift)*sc);}
+  else{c.fillStyle=css('--deck');c.fillRect(Xp(BX-1.7),Y(S),3.4*sc,(S-DECK)*sc)}
+  if(p.k==='6L'&&lift>.02){c.fillStyle=ink;c.globalAlpha=.55;c.fillRect(Xp(BX-1.45),Y(DECK+lift),2.9*sc,lift*sc);c.globalAlpha=1;
+    c.strokeStyle=ink;c.lineWidth=1;c.setLineDash([3,3]);c.beginPath();c.moveTo(Xp(BX+3),Y(DECK));c.lineTo(Xp(BX+3),Y(DECK+lift));c.stroke();c.setLineDash([]);c.fillStyle=ink;c.font=`${19*W/620}px system-ui`;c.fillText('升 '+(lift*10).toFixed(0)+' cm',Xp(BX+3.4),Y(DECK+lift/2))}
+  // 机械臂
+  if(fr.pts){const pts=fr.pts;c.lineCap='round';c.lineJoin='round';
+    c.strokeStyle=col;c.lineWidth=.95*sc;c.beginPath();pts.slice(0,-1).forEach((q,i)=>i?c.lineTo(Xp(q[0]),Y(q[1])):c.moveTo(Xp(q[0]),Y(q[1])));c.stroke();
+    // 吸盘
+    const tp=pts[pts.length-1],wp=pts[pts.length-2];c.strokeStyle=ink;c.lineWidth=.7*sc;c.beginPath();c.moveTo(Xp(wp[0]),Y(wp[1]));c.lineTo(Xp(tp[0]),Y(tp[1]));c.stroke();
+    const d=fr.dir;c.lineWidth=.45*sc;c.beginPath();c.moveTo(Xp(tp[0]-d[1]*1.8),Y(tp[1]+d[0]*1.8));c.lineTo(Xp(tp[0]+d[1]*1.8),Y(tp[1]-d[0]*1.8));c.stroke();
+    c.fillStyle=css('--card');c.strokeStyle=ink;c.lineWidth=2;pts.slice(0,-1).forEach(q=>{c.beginPath();c.arc(Xp(q[0]),Y(q[1]),.55*sc,0,7);c.fill();c.stroke()});
+    if(fr.held){const bxw=BOXW*sc,bxh=(CF.hc-.1)*sc,cx=tp[0]+d[0]*(d[0]?BOXW/2:0),cy=tp[1]+d[1]*(d[1]?-(CF.hc-.1)/2:0);
+      // 前吸：箱子在吸盘前方；顶吸：箱子在吸盘下方
+      const bx=d[0]?tp[0]+BOXW/2:tp[0],by=d[0]?tp[1]:tp[1]-(CF.hc-.1)/2;
+      c.fillStyle=stack;c.strokeStyle=css('--ink');c.lineWidth=1;c.fillRect(Xp(bx)-bxw/2,Y(by)-bxh/2,bxw,bxh);c.strokeRect(Xp(bx)-bxw/2,Y(by)-bxh/2,bxw,bxh)}
+  }
+  if(fr.ex){const tp=fr.tip;c.strokeStyle=bad;c.lineWidth=2.5;c.beginPath();c.moveTo(Xp(tp[0])-8,Y(tp[1])-8);c.lineTo(Xp(tp[0])+8,Y(tp[1])+8);c.moveTo(Xp(tp[0])+8,Y(tp[1])-8);c.lineTo(Xp(tp[0])-8,Y(tp[1])+8);c.stroke()}
+  c.fillStyle=sub;c.font=`${19*W/620}px system-ui`;c.fillText(`第 ${l+1} 层 / ${CF.NL} · ${CF.H/10} m 高 · 距货面 ${(D/10).toFixed(2)} m`,12,26);
+}
+const lastPhi={'7':null,'6':null,'6L':null},plans={};
+let lastT=performance.now(),segIdx=-1;
+function tick(now){
+  const dt=Math.min(.05,(now-lastT)/1000);lastT=now;
+  if(!paused){tcyc+=dt*SPD;if(tcyc>=TCYC){tcyc=0;if(autoOn)curLayer=(curLayer+1)%CF.NL;segIdx=-1;for(const p of PN)p.prevLift=plans[p.k]?plans[p.k].lift:0}}
+  const key=curLayer+'|'+$('dSl').value+'|'+$('hSel').value;if(key!==segIdx){segIdx=key;for(const p of PN)plans[p.k]=planPanel(p);
+    [...$('layBtns').children].forEach((b,i)=>b.classList.toggle('on',i===curLayer))}
+  for(const p of PN){const plan=plans[p.k],fr=frameFor(p,plan,tcyc,lastPhi[p.k]);lastPhi[p.k]=fr.phi;draw(p,fr,plan);
+    p.st.innerHTML=plan.ok?`<b style="color:var(--ok)">够得着</b> · ${plan.t.fb?'顶吸够不着，改前吸':plan.t.mode==='front'?'前吸':'顶吸'}${p.lift?` · 底座升 <b>${(plan.lift*10).toFixed(0)} cm</b>`:''}<br>${fr.phase}`:`<b style="color:var(--bad)">够不着</b> · ${plan.t.mode==='front'?'前吸':'顶吸'}${p.lift?'（升到最高仍不行）':''}<br>该箱位会被跳过 / 停机`}
+  requestAnimationFrame(tick)}
+requestAnimationFrame(tick);
+
+/* ===== 可达性地图 ===== */
+function drawMaps(){
+  const Ds=[];for(let d=6;d<=20;d+=1)Ds.push(d);
+  [['7',A7,false,$('mp7')],['6',A6,false,$('mp6')],['6L',A6,true,$('mp6l')]].forEach(([k,arm,lift,cv])=>{
+    const c=cv.getContext('2d'),W=cv.width,H=cv.height,L=92,B=40,T=12,R=10,cw=(W-L-R)/Ds.length,ch=(H-T-B)/CF.NL;c.clearRect(0,0,W,H);
+    const ok=css('--ok'),warn=css('--warn'),line=css('--line'),sub=css('--sub'),ink=css('--ink');let n=0;
+    for(let l=0;l<CF.NL;l++)for(let i=0;i<Ds.length;i++){const r=needLift(arm,l,Ds[i],CF,lift),x=L+i*cw,y=T+(CF.NL-1-l)*ch;
+      c.fillStyle=!r?line:r.lift>0?warn:ok;c.globalAlpha=!r?.7:r.t.fb?.5:.85;c.fillRect(x+1,y+1,cw-2,ch-2);c.globalAlpha=1;
+      if(r)n++;if(r&&r.t.fb){c.fillStyle=ink;c.font='bold 13px system-ui';c.textAlign='center';c.fillText('前'+(r.lift>0?(r.lift*10).toFixed(0):''),x+cw/2,y+ch/2+4)}else if(r&&r.lift>0){c.fillStyle='#000';c.font='bold 14px system-ui';c.textAlign='center';c.fillText((r.lift*10).toFixed(0),x+cw/2,y+ch/2+4)}}
+    c.textAlign='right';c.fillStyle=sub;c.font='15px system-ui';for(let l=0;l<CF.NL;l++)c.fillText('第'+(l+1)+'层'+(l===CF.NL-1?'·前吸':''),L-5,T+(CF.NL-1-l)*ch+ch/2+4);
+    c.textAlign='center';for(let i=0;i<Ds.length;i+=2)c.fillText((Ds[i]/10).toFixed(1),L+i*cw+cw/2,H-B+17);c.fillText('臂座到货面距离 (m)',(W+L)/2,H-8);
+    cv.dataset.n=n});
+  const tot=Ds.length*CF.NL;$('mapNote').textContent=`在 ${CF.H/10} m 高的车厢里（共 ${CF.NL} 层 × ${Ds.length} 个距离 = ${tot} 个工况）：七轴够得着 ${$('mp7').dataset.n} 个，六轴 ${$('mp6').dataset.n} 个，六轴+升降 ${$('mp6l').dataset.n} 个。`}
+drawMaps();
+matchMedia('(prefers-color-scheme:dark)').addEventListener('change',drawMaps);
+</script>
+</body>
+</html>
