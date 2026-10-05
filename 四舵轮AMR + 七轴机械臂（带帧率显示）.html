@@ -448,20 +448,15 @@ const envG={open:new THREE.Group(),gp:new THREE.Group(),hq:new THREE.Group()};
 const VEH=[
   {k:'gp',n:'标柜 20GP',L:58.98,W:23.5,H:23.9,Hd:22.8,col:0xb5402a,hc:3.9,seed:7,desc:'集装箱 内部 5.898×2.352×2.393 m，门洞 2.340×2.280 m'},
   {k:'hq',n:'高柜 20HQ',L:58.98,W:23.5,H:27.0,Hd:25.85,col:0x2d5b86,hc:4.4,seed:11,desc:'集装箱 内部 5.898×2.352×2.698 m，门洞 2.340×2.585 m'},
-  {k:'t42',n:'4.2 m 厢货',L:42,W:21,H:21.5,col:0xe8ebee,seed:3,desc:'4.2 m 厢式货车（卷烟末端配送）内部 4.2×2.1×2.15 m'},
-  {k:'t68',n:'6.8 m 厢货',L:68,W:23,H:23.5,col:0xdfe4e8,seed:5,desc:'6.8 m 厢式货车（卷烟配送）内部 6.8×2.3×2.35 m'},
-  {k:'t96',n:'9.6 m 厢货',L:96,W:23.5,H:25,col:0xe3e7ea,seed:9,desc:'9.6 m 厢式货车（卷烟配送 / 调拨）内部 9.6×2.35×2.5 m'},
-  {k:'t52',n:'5.2 m 厢货',L:52,W:22,H:23,col:0xe4e8ec,seed:4,desc:'5.2 m 厢式货车（卷烟配送）内部 5.2×2.2×2.3 m'},
-  {k:'t76',n:'7.6 m 厢货',L:76,W:23.5,H:24,col:0xdde2e6,seed:6,desc:'7.6 m 厢式货车（卷烟配送）内部 7.6×2.35×2.4 m'},
-  {k:'c40',n:'标柜 40GP',L:120.32,W:23.5,H:23.9,Hd:22.8,col:0x9c4a2f,hc:3.9,seed:19,desc:'40 尺集装箱 内部 12.032×2.352×2.393 m（烟草出口）'},
-  {k:'c40h',n:'高柜 40HQ',L:120.32,W:23.5,H:27.0,Hd:25.85,col:0x2a5a7a,hc:4.4,seed:23,desc:'40 尺高柜 内部 12.032×2.352×2.698 m（烟草出口）'},
-  {k:'c45',n:'高柜 45HC',L:135.56,W:23.5,H:27.0,Hd:25.85,col:0x3a6a4a,hc:4.4,seed:29,desc:'45 尺高柜 内部 13.556×2.352×2.698 m'},
-  {k:'t87',n:'8.7 m 厢货',L:87,W:23.5,H:24.5,col:0xe0e5e9,seed:8,desc:'8.7 m 厢式货车（卷烟配送 / 调拨）内部 8.7×2.35×2.45 m'},
-  {k:'t117',n:'11.7 m 厢货',L:117,W:24,H:26,col:0xdadfe4,seed:12,desc:'11.7 m 厢式货车（卷烟调拨）内部 11.7×2.4×2.6 m'},
-  {k:'t125',n:'12.5 m 厢货',L:125,W:24.5,H:26.5,col:0xd6dbe0,seed:14,desc:'12.5 m 厢式货车 / 半挂（卷烟调拨）内部 12.5×2.45×2.65 m'},
-  {k:'t161',n:'53 尺挂车',L:161.5,W:24.8,H:27.5,col:0xcdd3d9,seed:21,desc:'53 尺厢式挂车（长途干线）内部 16.15×2.48×2.75 m'},
-  {k:'t135',n:'13.5 m 半挂',L:135,W:24.5,H:27,col:0xd8dde2,seed:13,desc:'13.5 m 厢式半挂（卷烟干线调拨）内部 13.5×2.45×2.7 m'},
-  {k:'t175',n:'17.5 m 半挂',L:175,W:24.8,H:27.5,col:0xcfd5db,seed:17,desc:'17.5 m 厢式半挂（卷烟长途干线）内部 17.5×2.48×2.75 m'}];
+  {k:'c40h',n:'高柜 40HQ',L:120.32,W:23.5,H:27.0,Hd:25.85,col:0x2a5a7a,hc:4.4,seed:23,desc:'40 尺高柜 内部 12.032×2.352×2.698 m'},
+  {k:'t42',n:'4.2 m 厢货 2.5×2.5',L:42,W:25,H:25,col:0xe8ebee,seed:3,desc:'4.2 m 厢式货车（卷烟末端配送）内部 4.2×2.5×2.5 m'},
+  {k:'t68',n:'6.8 m 厢货 2.7×2.6',L:68,W:27,H:26,col:0xdfe4e8,seed:5,desc:'6.8 m 厢式货车（卷烟配送）内部 6.8×2.7×2.6 m'},
+  {k:'t76',n:'7.6 m 厢货 2.8×2.7',L:76,W:28,H:27,col:0xdde2e6,seed:6,desc:'7.6 m 厢式货车（卷烟配送）内部 7.6×2.8×2.7 m'},
+  {k:'t96',n:'9.6 m 厢货 2.9×2.7',L:96,W:29,H:27,col:0xe3e7ea,seed:9,desc:'9.6 m 厢式货车（卷烟配送 / 调拨）内部 9.6×2.9×2.7 m'},
+  {k:'t125',n:'12.5 m 厢货 2.9×2.7',L:125,W:29,H:27,col:0xd6dbe0,seed:14,desc:'12.5 m 厢式货车 / 半挂（卷烟调拨）内部 12.5×2.9×2.7 m'},
+  {k:'t135',n:'13.5 m 半挂 2.9×2.7',L:135,W:29,H:27,col:0xd8dde2,seed:13,desc:'13.5 m 厢式半挂（卷烟干线调拨）内部 13.5×2.9×2.7 m'},
+  {k:'t135h',n:'13.5 m 半挂 2.9×2.9',L:135,W:29,H:29,col:0xcfd5db,seed:17,desc:'13.5 m 厢式半挂（加高）内部 13.5×2.9×2.9 m'},
+  {k:'t175',n:'17.5 m 半挂 2.9×2.7',L:175,W:29,H:27,col:0xc8ced4,seed:21,desc:'17.5 m 厢式半挂（卷烟长途干线）内部 17.5×2.9×2.7 m'}];
 const TL=()=>ENV[envK].NL-1;   // 最上层序号（该层前吸，其余层顶吸）
 
 const ENV={open:{bx:[],cy:[],wl:[],room:null,bumps:[]},gp:{bx:[],cy:[],wl:[],room:null,bumps:[]},hq:{bx:[],cy:[],wl:[],room:null,bumps:[]}};
@@ -524,38 +519,38 @@ function buildDock(g,cg,L,W,H,E){
   const add=(w,h,d,m,x,y,z,par)=>{const o=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);o.position.set(x,y,z);(par||g).add(o);return o};
   const M2=(c,r=.9,m=.1)=>new THREE.MeshStandardMaterial({color:c,roughness:r,metalness:m});
   const conc=M2(0x9aa0a6),yellow=M2(0xf5c400,.6),asph=M2(0x3b4048),black=M2(0x15181c,.9);
-  const XE=-2.2,top=.01,GY=-13,hh=top-GY;
+  const XE=-2.2,top=.01,GY=-13,hh=top-GY,BW=W-2.5,hb=BW/2,kw=W/23.5;   // 登车桥宽度随车厢内宽；kw 用于底盘/车轴的横向位置缩放
   add(300,.2,300,asph,0,GY-.1,0);                                     // 沥青地面
   const slab=(x0,x1,z0,z1)=>add(x1-x0,hh,z1-z0,conc,(x0+x1)/2,(top+GY)/2,(z0+z1)/2);
-  slab(-72,-22,-40,40);slab(-22,XE,-40,-10.5);slab(-22,XE,10.5,40);   // 月台台面（中间留桥坑）
-  add(19.8,.4,21,M2(0x2a3038),(DK.x0+XE)/2,-6,0);                     // 桥坑底
+  slab(-72,-22,-40,40);slab(-22,XE,-40,-hb);slab(-22,XE,hb,40);   // 月台台面（中间留桥坑）
+  add(19.8,.4,BW,M2(0x2a3038),(DK.x0+XE)/2,-6,0);                     // 桥坑底
   add(.5,.02,80,yellow,XE-1.0,top+.01,0);                             // 边缘警示线
-  [-11,11].forEach(z=>add(1,3.4,2.2,black,XE+.5,-3.5,z));            // 月台缓冲块
-  add(.6,.5,21,M2(0x2a3038),DK.x0-.1,top-.1,0);                      // 铰接座
+  [-hb-.5,hb+.5].forEach(z=>add(1,3.4,2.2,black,XE+.5,-3.5,z));            // 月台缓冲块
+  add(.6,.5,BW,M2(0x2a3038),DK.x0-.1,top-.1,0);                      // 铰接座
   // 登车桥：桥板绕后端铰接倾斜；搭接唇保持水平搭入箱内
   const deckM=new THREE.MeshStandardMaterial({map:stripeTex('#68727e','#5a636e',1,4),roughness:.5,metalness:.5});
   const lipM=new THREE.MeshStandardMaterial({map:stripeTex('#f5c400','#1a1a1a',1,5),roughness:.6});
   const pivot=new THREE.Group();pivot.position.set(DK.x0,top+.03,0);g.add(pivot);
-  add(DK.Ld,.4,21,deckM,DK.Ld/2,-.2,0,pivot);
-  [-1,1].forEach(sg=>add(DK.Ld,.7,.3,yellow,DK.Ld/2,.3,sg*10.65,pivot));
-  const lip=add(4.4,.3,21,lipM,0,0,0);
+  add(DK.Ld,.4,BW,deckM,DK.Ld/2,-.2,0,pivot);
+  [-1,1].forEach(sg=>add(DK.Ld,.7,.3,yellow,DK.Ld/2,.3,sg*(hb+.15),pivot));
+  const lip=add(4.4,.3,BW,lipM,0,0,0);
   // 月台输送线：接住车尾输送线送出的箱子，继续向外送
   const dl=DOCK_START-DOCK_END,dm=new THREE.MeshStandardMaterial({map:bTexD,roughness:.9});bTexD.repeat.set(dl/2.5,1);
   add(dl,.5,BELT_W,dm,(DOCK_START+DOCK_END)/2,BELT_TOP-.25,DOCKZ);
   [-1,1].forEach(sg=>add(dl,.7,.3,yellow,(DOCK_START+DOCK_END)/2,BELT_TOP-.15,DOCKZ+sg*(BELT_W/2+.15)));
   [DOCK_START-2,-16,-24,DOCK_END+1.5].forEach(x=>[-1,1].forEach(sg=>add(.5,BELT_TOP-.5,.5,black,x,(BELT_TOP-.5)/2,DOCKZ+sg*(BELT_W/2-.2))));
   // 拖车底盘（随集装箱一起抬升）
-  [-8,8].forEach(z=>add(L+3,1.2,.9,dark,L/2+.5,-.79,z,cg));
+  [-8*kw,8*kw].forEach(z=>add(L+3,1.2,.9,dark,L/2+.5,-.79,z,cg));
   for(let x=4;x<L;x+=8)add(.8,.5,W-1,dark,x,-.44,0,cg);
-  add(.8,1.6,W,dark,-.7,-2.4,0,cg);[-10,10].forEach(z=>add(.8,2,.8,dark,-.7,-1.4,z,cg));
+  add(.8,1.6,W,dark,-.7,-2.4,0,cg);[-10*kw,10*kw].forEach(z=>add(.8,2,.8,dark,-.7,-1.4,z,cg));
   // 车轴、轮胎留在地面；立柱和支腿随抬升伸缩
   const tel=[];
   [6,13,20].forEach(x=>{
     cyl(.45,.45,22,dark,x,-8,0,g,true);
-    [-9.6,9.6].forEach(z=>{cyl(5,5,2.6,rubber,x,-8,z,g,true);cyl(2.6,2.6,2.7,alu,x,-8,z,g,true)});
-    [-8,8].forEach(z=>tel.push({m:add(1.2,1,1.2,dark,x,-4.5,z),bot:-8}));
+    [-9.6*kw,9.6*kw].forEach(z=>{cyl(5,5,2.6,rubber,x,-8,z,g,true);cyl(2.6,2.6,2.7,alu,x,-8,z,g,true)});
+    [-8*kw,8*kw].forEach(z=>tel.push({m:add(1.2,1,1.2,dark,x,-4.5,z),bot:-8}));
   });
-  [-9,9].forEach(z=>{tel.push({m:add(.8,1,.8,dark,L-8,-6.5,z),bot:-11.5});add(2,.3,2,dark,L-8,-11.6,z)});
+  [-9*kw,9*kw].forEach(z=>{tel.push({m:add(.8,1,.8,dark,L-8,-6.5,z),bot:-11.5});add(2,.3,2,dark,L-8,-11.6,z)});
   E.updateSlope=deg=>{
     const th=deg*Math.PI/180,h=DK.Ld*Math.sin(th),xf=DK.x0+DK.Ld*Math.cos(th);
     pivot.rotation.z=th;lip.position.set(xf+2.2,h+.03-.15,0);cg.position.y=h;
