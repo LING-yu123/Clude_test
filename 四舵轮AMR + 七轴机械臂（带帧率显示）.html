@@ -1077,7 +1077,7 @@ function releaseHeld(){
 function resetCargo(){
   for(const k of ['gp','hq']){const E=ENV[k];if(!E.im)continue;E.im.instanceMatrix.array.set(E.orig);E.im.instanceMatrix.needsUpdate=true;E.exist.fill(true);E.cyc.set(E.cartons.map(c=>c[1]));E.vy.fill(0);E.rebuild()}
   if(held.obj){dropBox(held.obj.mesh);held.obj=null}
-  freeBoxes.forEach(b=>dropBox(b.mesh));freeBoxes.length=0;apS=0;apMsg='';apReturn=null;ldS=0;ldMsg='';ldRet=null;ldAtEnd=false;ldN=0;LOADM=false;
+  freeBoxes.forEach(b=>dropBox(b.mesh));freeBoxes.length=0;LSKIP.clear();apS=0;apMsg='';apReturn=null;ldS=0;ldMsg='';ldRet=null;ldAtEnd=false;ldN=0;LOADM=false;
 }
 const M4=new THREE.Matrix4();
 function stackStep(dt){
@@ -1361,9 +1361,9 @@ function useArm(k,quiet,lift){
 document.querySelectorAll('#armK button').forEach(b=>b.onclick=()=>useArm(parseInt(b.dataset.k),false,b.dataset.k==='6L'));
 function setLift(h){qL=Math.max(0,Math.min(BLIFT_MAX,h));document.getElementById('lftS').value=Math.round(qL*10);document.getElementById('lftV').textContent=Math.round(qL*10)+' cm'}
 document.getElementById('lftS').oninput=e=>setLift(+e.target.value/10);
-let LIFT_Y0=10,LIFT_K=0,LIFT_OV=null;const LIFT_TRY=[3,6,1.5];   // 默认不升（实测升高会压缩车顶间隙）；规划失败时依次尝试升到 30/60/15 cm（LIFT_OV 为本箱的强制升降量）
+let LIFT_L0=3,LIFT_V0=4,LIFT_OV=null;const LIFT_TRY=[3,6,1.5];   // 默认不升（实测升高会压缩车顶间隙）；规划失败时依次尝试升到 30/60/15 cm（LIFT_OV 为本箱的强制升降量）
 const liftNext=cd=>{if(!LIFT)return false;const n=(cd.lt||0);if(n>=LIFT_TRY.length)return false;cd.lt=n+1;LIFT_OV=LIFT_TRY[n];return true};
-const liftFor=cd=>LIFT_OV!=null?LIFT_OV:LIFT?Math.max(0,Math.min(BLIFT_MAX,Math.round((cd.c.y-LIFT_Y0)*LIFT_K*2)/2)):0;   // 按目标箱所在高度定升降量：底下两层不升，顶层升到最高
+const liftFor=cd=>LIFT_OV!=null?LIFT_OV:LIFT&&cd.l>=LIFT_L0&&cd.l<5?LIFT_V0:0;   // 中间几层（顶吸、离地较高）按 LIFT_V0 升底座；最上层前吸受车顶限制，不升
 const liftWait=cd=>{if(cd.lt==null)LIFT_OV=null;if(!LIFT)return false;setLift(liftFor(cd));return Math.abs(qLc-qL)>.02};   // 需要升降时返回 true：暂停本步，等底座到位后再规划
 function mkObb(){return{c:[0,0,0],a:[[1,0,0],[0,1,0],[0,0,1]],h:[0,0,0]}}
 function obbOfEntry(b,o,margin){   // 把 OCC 条目（部件局部盒）转成世界系有向盒
@@ -1669,8 +1669,9 @@ document.getElementById('rst').onclick=()=>{resetCargo()};
 // 搬运路径直接复用卸货的规划：卸货是“从货垛取出 → 搬运 → 放到输送线”，装车就是它的时间反演（输送线抓取 → 沿搬运路径反向 → 放进空位）。
 // 码放顺序：由里向外一面一面；每面自下而上一层一层；每层蛇形（左→右、右→左交替）。最上层用前吸/前放（顶上没有间隙），其余层顶吸/顶放。
 const LORD=[0,1,2,3,4,5];   // 蛇形：偶数层从左到右，奇数层从右到左——每层只在中间换一次侧（机械臂车尾取箱位左右两侧，换侧要转整圈）
-function nextSlot(E){for(let sl=0;sl<E.slices;sl++)for(let l=0;l<6;l++)for(const j of(l%2?[...LORD].reverse():LORD)){const i=(sl*6+j)*6+l;if(!E.exist[i])return{i,sl,j,l,c:cargoC(E,i,new THREE.Vector3())}}return null}
-function emptyCargo(){
+const LSKIP=new Set();   // 机械臂够不着而被跳过的槽位（本次装车内不再尝试）
+function nextSlot(E){for(let sl=0;sl<E.slices;sl++)for(let l=0;l<6;l++)for(const j of(l%2?[...LORD].reverse():LORD)){const i=(sl*6+j)*6+l;if(!E.exist[i]&&!LSKIP.has(i))return{i,sl,j,l,c:cargoC(E,i,new THREE.Vector3())}}return null}
+function emptyCargo(){LSKIP.clear();
   const E=ENV[envK];if(!E.cartons)return false;
   resetCargo();for(let i=0;i<E.cartons.length;i++){E.exist[i]=false;E.im.setMatrixAt(i,ZM)}
   E.im.instanceMatrix.needsUpdate=true;E.cyc.set(E.cartons.map(c=>c[1]));E.vy.fill(0);E.rebuild();return true;
@@ -1720,19 +1721,20 @@ function stationOK(cd){   // 该车位能否同时服务“中转位顶放 + 前
   const st=ldStation(cd);apInfo={c:st.c,xf:st.c.x-2.925,cd:st,force:'top',tries:0};
   const p=planPick();setAxes(false);return !!p&&!!stFront(st);
 }
+let LDF=null;   // 调试：前放规划在哪一步失败
 function ldTryReg(cd){
   apInfo={c:cd.c,xf:cd.c.x-2.925,cd,force:'front',tries:0};
   const dh=Math.hypot(apInfo.xf-(pos.x+1.6*Math.cos(yaw)),cd.c.z-(pos.z-1.6*Math.sin(yaw)));
-  if(!(dh>=12.5&&dh<=21))return null;
-  const plR=planPick();if(!plR)return null;
-  const crR=planCarryBest(plR,false);if(!crR||!crR.path)return null;
+  if(!(dh>=12.5&&dh<=21))return(LDF='dh',null);
+  const plR=planPick();if(!plR)return(LDF='plR',null);
+  const crR=planCarryBest(plR,false);if(!crR||!crR.path)return(LDF='crR',null);
   const st=ldStation(cd);
   apInfo={c:st.c,xf:st.c.x-2.925,cd:st,force:'top',tries:0};
-  const plT=planPick();if(!plT)return null;
-  const crT=planCarryBest(plT,false);if(!crT||!crT.path)return null;
-  const plT2=crT.pl2||plT,pcT=pickCfgs(plT2,crT,true);if(!pcT)return null;
-  const F=stFront(st);if(!F)return null;
-  const lift=ldLift(F,cd);if(!lift)return null;
+  const plT=planPick();if(!plT)return(LDF='plT',null);
+  const crT=planCarryBest(plT,false);if(!crT||!crT.path)return(LDF='crT',null);
+  const plT2=crT.pl2||plT,pcT=pickCfgs(plT2,crT,true);if(!pcT)return(LDF='pcT',null);
+  const F=stFront(st);if(!F)return(LDF='F',null);
+  const lift=ldLift(F,cd);if(!lift)return(LDF='lift',null);
   apInfo={c:st.c,xf:st.c.x-2.925,cd:st,force:'top',tries:0,pm:'top'};
   return{pl:plT2,cr:crT,pc:pcT,front:false,reg:{phase:0,st,F,plR,crR,lift}};
 }
@@ -1776,7 +1778,7 @@ function loadStep(dt){
   feedStep(dt,E);
   if(ldS===1){
     if(Math.abs(yaw)>.15){fail('请先让车头朝向车厢内部');return}
-    const cd=nextSlot(E);if(!cd){ldS=0;ldMsg=`装车完成，共 ${E.exist.filter(v=>v).length} 箱`;return}
+    const cd=nextSlot(E);if(!cd){ldS=0;ldMsg=`装车完成，共 ${E.exist.filter(v=>v).length} 箱`+(LSKIP.size?`（${LSKIP.size} 个箱位机械臂够不着，已跳过）`:'');return}
     cmd=[0,0,0];demo=false;ldInfo={cd,tries:0,fails:0,force:cd.l<5?'top':'front'};ldS=3;say(`第 ${cd.sl+1} 面（由里向外）· 自下而上第 ${cd.l+1} 层 · 第 ${cd.j+1} 列：规划…`);loadStep(0);return;
   }else if(ldS===2){   // 底盘到位（前后 + 左右）
     const dx=ldInfo.park.x-pos.x,dz=ldInfo.park.z-pos.z;
@@ -1790,7 +1792,7 @@ function loadStep(dt){
       if(!pk&&ldInfo.force==='top'){pk=findParking(cd,'front');if(pk)ldInfo.force='front'}
       if(pk&&ldInfo.tries<3){ldInfo.tries++;ldInfo.park=pk;ldS=2;say(`调整车位（前后 ${((pk.x-pos.x)*10).toFixed(0)} cm，左右 ${((pk.z-pos.z)*10).toFixed(0)} cm）…`);return}
       if(liftNext(cd)){ldInfo.tries=0;ldInfo.force=cd.l<5?'top':'front';return}   // 升降方案：挪车也不行，再换一个底座高度重试
-      fail(`第 ${cd.sl+1} 面第 ${cd.l+1} 层第 ${cd.j+1} 列机械臂放不进去，已停止`);return;
+      LSKIP.add(cd.i);ldInfo=null;LIFT_OV=null;ldS=1;ldMsg=`第 ${cd.sl+1} 面第 ${cd.l+1} 层第 ${cd.j+1} 列机械臂放不进去，跳过该箱位（共跳过 ${LSKIP.size} 个）`;ldT=0;return;   // 不整体停机：跳过这个够不着的箱位，继续装其余位置
     }
     r=ldAlign(r,qc.slice(0,7));Object.assign(ldInfo,r);
     const carryEnd=ldAtEnd,from=qc.slice(0,7),ap=ldApproach(r.pc,from,carryEnd);ldAtEnd=false;
