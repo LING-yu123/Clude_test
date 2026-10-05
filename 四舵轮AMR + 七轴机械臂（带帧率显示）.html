@@ -103,7 +103,7 @@ button.lk.on{background:#dc2626;border-color:#dc2626;color:#fff}
   <div id="sgn"></div><div id="sgbtn"></div>
   <label style="display:flex;gap:6px;margin-top:6px"><input type="checkbox" id="sgo" checked>显示轴线标注</label>
   <div class="lg">绿 J5轴 · 橙 J7轴 · 蓝 J1轴 · 黄点 腕心 · 紫 肩→腕连线</div></details></div>
-<div id="lp"><details open><summary><b>雷达位姿</b></summary><div id="lpt" style="display:flex;gap:4px;margin-bottom:4px"></div><label style="margin:2px 0 4px"><input type="checkbox" id="lpe" checked>启用该雷达（青 / 橙 / 紫 / 绿）</label><div id="lps"></div><div style="font-size:11px;opacity:.7;margin-top:4px">相对车体中心（x 前 / y 上 / z 右）；偏航左偏为正，俯仰抬头为正，横滚右倾为正。点云按雷达自身姿态扫描。</div><div style="margin-top:6px"><label style="margin:2px 0"><span style="width:64px">点云着色</span><select id="lcm" style="flex:1"><option value="0">按高度</option><option value="1">按雷达（青/橙/紫/绿）</option><option value="2">按距离</option><option value="3">按命中类型</option></select></label><label style="margin:2px 0"><input type="checkbox" id="lnz" checked>测距噪声（σ≈2 cm）</label><label style="margin:2px 0"><span style="width:64px">点密度</span><input id="ldn" type="range" min="0.2" max="1" step="0.05" value="1"><b id="ldv" style="width:46px;text-align:right;font-weight:500">100%</b></label><div id="lrate" style="font-size:11px;opacity:.7;min-height:15px"></div></div><button id="lpr">复位到默认位姿</button></details></div>
+<div id="lp"><details open><summary><b>雷达位姿</b></summary><div id="lpt" style="display:flex;gap:4px;margin-bottom:4px"></div><label style="margin:2px 0 4px"><input type="checkbox" id="lpe" checked>启用该雷达（青 / 橙 / 紫 / 绿）</label><div id="lps"></div><div style="font-size:11px;opacity:.7;margin-top:4px">相对车体中心（x 前 / y 上 / z 右）；偏航左偏为正，俯仰抬头为正，横滚右倾为正。点云按雷达自身姿态扫描。</div><div style="margin-top:6px"><label style="margin:2px 0"><span style="width:64px">点云着色</span><select id="lcm" style="flex:1"><option value="0">按高度</option><option value="1">按雷达（青/橙/紫/绿）</option><option value="2">按距离</option><option value="3">按命中类型</option><option value="4">按反射强度</option></select></label><label style="margin:2px 0"><input type="checkbox" id="lnz" checked>测距噪声（σ≈2 cm）</label><label style="margin:2px 0"><span style="width:64px">点密度</span><input id="ldn" type="range" min="0.2" max="1" step="0.05" value="1"><b id="ldv" style="width:46px;text-align:right;font-weight:500">100%</b></label><div id="lrate" style="font-size:11px;opacity:.7;min-height:15px"></div></div><button id="lpr">复位到默认位姿</button></details></div>
 <div id="arm"><details open><summary><b id="armT">七轴机械臂</b></summary>
   <div id="armK" class="g" style="grid-template-columns:1fr 1fr;margin:4px 0 6px"><button data-k="7" class="on" style="font-size:12px;padding:5px 2px">七轴<br>冗余臂</button><button data-k="6" style="font-size:12px;padding:5px 2px">六轴 FANUC<br>M-20iD/35</button></div>
   <div id="js"></div><div id="pre"></div><div id="zn"></div><div id="tip" style="margin-top:8px"></div>
@@ -584,7 +584,7 @@ buildContainer('gp',23.9,22.8,0xb5402a);   // 标柜 20GP
 buildContainer('hq',27.0,25.85,0x2d5b86);  // 高柜 20HQ
 // 解析射线求交：地面 + 长方体 + 竖直圆柱
 let hK=0,hI=0,hAx=0,hSg=0;   // 最近命中：类型(1地面 2长方体 3圆柱 4箱内壁 5箱体壳体)、序号、法向轴、法向符号
-function cast(ox,oy,oz,dx,dy,dz){   // 无内存分配、轴向展开的射线求交（雷达/相机每秒调用数十万次，是性能热点）
+function cast(ox,oy,oz,dx,dy,dz,bin=-1){   // 无内存分配、轴向展开的射线求交（雷达/相机每秒调用数十万次，是性能热点）
   let best=1e9,t,a,e,q;hK=0;
   const inRoom=!!room&&ox>room[0]&&ox<room[1]&&oy>room[2]&&oy<room[3]&&oz>room[4]&&oz<room[5];   // 起点在箱内：用内壁；在箱外：用壳体长方体
   if(inRoom){
@@ -595,8 +595,9 @@ function cast(ox,oy,oz,dx,dy,dz){   // 无内存分配、轴向展开的射线�
     if(!(ax===0&&dx<0)&&tt>MINR&&tt<best){best=tt;hK=4;hAx=ax;hSg=(ax===0?dx:ax===1?dy:dz)>0?-1:1}   // 门端敞开：射线从门口出去不命中
   }
   if(dy<0){t=-oy/dy;if(t>MINR&&t<best){best=t;hK=1;hAx=1;hSg=1}}
-  const nb=bx.length,n=nb+(inRoom?0:wl.length);
-  for(let bi=0;bi<n;bi++){
+  const nb=bx.length,nAll=nb+(inRoom?0:wl.length),useS=bin>=0&&!sOver[bin],n=useS?sCnt[bin]:nAll,sBase=bin*BIN_CAP;
+  for(let ii=0;ii<n;ii++){
+    const bi=useS?sLst[sBase+ii]:ii;
     const b=bi<nb?bx[bi]:wl[bi-nb],cx=b[0],cy=b[1],cz=b[2],hx=b[3],hy=b[4],hz=b[5];
     let t0=-1e9,t1=1e9,ka=0,sg=1;
     if(dx>1e-9||dx<-1e-9){a=(cx-hx-ox)/dx;e=(cx+hx-ox)/dx;if(a>e){q=a;a=e;e=q}if(a>t0){t0=a;ka=0;sg=dx>0?-1:1}if(e<t1)t1=e}else if(ox<cx-hx||ox>cx+hx)continue;
@@ -707,16 +708,35 @@ function occUpdate(){
 const NAZ=48,NEL=12,NBIN=NAZ*NEL,BIN_CAP=48,binCnt=new Uint8Array(NBIN),binOver=new Uint8Array(NBIN),binLst=new Uint8Array(NBIN*BIN_CAP);
 const BC=(()=>{const o=new Float32Array(NBIN*3);for(let i=0;i<NAZ;i++)for(let j=0;j<NEL;j++){const az=(i+.5)/NAZ*TP,el=ELMIN+(j+.5)/NEL*(ELMAX-ELMIN),ce=Math.cos(el),k=(i*NEL+j)*3;o[k]=ce*Math.cos(az);o[k+1]=Math.sin(el);o[k+2]=-ce*Math.sin(az)}return o})();
 const BIN_PAD=.095;   // 格半对角角度（≈0.078 rad）+ 余量
+const DAZ=TP/NAZ,DEL=(ELMAX-ELMIN)/NEL;
+function markCone(cnt,over,lst,idx,all,ux,uy,uz,al){   // 把部件 idx 登记到它的包围球（局部方向 u、角半径 al）覆盖到的方向格里；只扫包围矩形内的格，再用点积精确判断
+  if(all){for(let k=0;k<NBIN;k++){if(over[k])continue;const c=cnt[k];if(c>=BIN_CAP){over[k]=1;continue}lst[k*BIN_CAP+c]=idx;cnt[k]=c+1}return}
+  const el=Math.asin(Math.max(-1,Math.min(1,uy))),elLo=el-al,elHi=el+al;if(elHi<ELMIN||elLo>ELMAX)return;
+  const j0=Math.max(0,Math.floor((elLo-ELMIN)/DEL)),j1=Math.min(NEL-1,Math.floor((elHi-ELMIN)/DEL)),cmax=Math.cos(Math.min(1.5,Math.max(Math.abs(elLo),Math.abs(elHi)))),azH=Math.min(Math.PI,al/Math.max(.05,cmax)),az=Math.atan2(-uz,ux),cs=Math.cos(Math.min(Math.PI,al));
+  const full=azH>=Math.PI-.01,nI=full?NAZ:Math.min(NAZ,Math.ceil(2*azH/DAZ)+2),st=full?0:Math.floor((((az-azH)%TP)+TP)%TP/DAZ);
+  for(let j=j0;j<=j1;j++)for(let t=0;t<nI;t++){const i=(st+t)%NAZ,k=i*NEL+j;
+    if(BC[k*3]*ux+BC[k*3+1]*uy+BC[k*3+2]*uz<cs)continue;
+    if(over[k])continue;const c=cnt[k];if(c>=BIN_CAP){over[k]=1;continue}lst[k*BIN_CAP+c]=idx;cnt[k]=c+1}
+}
 function occBins(me){   // me：雷达世界矩阵（把部件方向变到雷达局部系）；occBegin 之后调用
   binCnt.fill(0);binOver.fill(0);
   for(let i=0,n=OCC.length;i<n;i++){const b=OCC[i];if(!b.on)continue;
-    const D=Math.sqrt(b.D2),R=Math.sqrt(b.R2);let all=D<=R*1.02;let ux=0,uy=0,uz=0,cs=-2;
+    const D=Math.sqrt(b.D2),R=Math.sqrt(b.R2),all=D<=R*1.02;let ux=0,uy=0,uz=0,al=0;
     if(!all){const wx=b.ax/D,wy=b.ay/D,wz=b.az/D;ux=me[0]*wx+me[1]*wy+me[2]*wz;uy=me[4]*wx+me[5]*wy+me[6]*wz;uz=me[8]*wx+me[9]*wy+me[10]*wz;
-      const ul=Math.hypot(ux,uy,uz);ux/=ul;uy/=ul;uz/=ul;const al=Math.asin(Math.min(1,R/D))+BIN_PAD;cs=al>=Math.PI?-2:Math.cos(al)}
-    for(let k=0;k<NBIN;k++){
-      if(!all&&BC[k*3]*ux+BC[k*3+1]*uy+BC[k*3+2]*uz<cs)continue;
-      if(binOver[k])continue;const c=binCnt[k];if(c>=BIN_CAP){binOver[k]=1;continue}binLst[k*BIN_CAP+c]=i;binCnt[k]=c+1}
-  }
+      const ul=Math.hypot(ux,uy,uz);ux/=ul;uy/=ul;uz/=ul;al=Math.asin(Math.min(1,R/D))+BIN_PAD}
+    markCone(binCnt,binOver,binLst,i,all||al>=Math.PI,ux,uy,uz,al)}
+}
+const sCnt=new Uint8Array(NBIN),sOver=new Uint8Array(NBIN),sLst=new Uint8Array(NBIN*BIN_CAP);
+function envBins(ox,oy,oz,me){   // 静态环境（货垛/障碍/箱壁）的方向格：同样按包围球的角半径，每帧每台雷达建一次
+  sCnt.fill(0);sOver.fill(0);
+  const inRoom=!!room&&ox>room[0]&&ox<room[1]&&oy>room[2]&&oy<room[3]&&oz>room[4]&&oz<room[5],nb=bx.length,n=nb+(inRoom?0:wl.length);
+  if(n>255){sOver.fill(1);return}
+  for(let bi=0;bi<n;bi++){
+    const b=bi<nb?bx[bi]:wl[bi-nb],ax=b[0]-ox,ay=b[1]-oy,az=b[2]-oz,D=Math.sqrt(ax*ax+ay*ay+az*az),R=Math.sqrt(b[3]*b[3]+b[4]*b[4]+b[5]*b[5]),all=D<=R*1.02;
+    let ux=0,uy=0,uz=0,al=0;
+    if(!all){const wx=ax/D,wy=ay/D,wz=az/D;ux=me[0]*wx+me[1]*wy+me[2]*wz;uy=me[4]*wx+me[5]*wy+me[6]*wz;uz=me[8]*wx+me[9]*wy+me[10]*wz;
+      const ul=Math.hypot(ux,uy,uz);ux/=ul;uy/=ul;uz/=ul;al=Math.asin(Math.min(1,R/D))+BIN_PAD}
+    markCone(sCnt,sOver,sLst,bi,all||al>=Math.PI,ux,uy,uz,al)}
 }
 function occBegin(ox,oy,oz){   // 同一台雷达本帧所有射线共用起点：先把起点变换到各部件局部系（每个部件只算一次）
   for(let i=0,n=OCC.length;i<n;i++){const b=OCC[i];if(!b.on)continue;const m=b.m;
@@ -755,18 +775,20 @@ function radarStep(dt){
   let nAct=0;for(const l of LIDARS)if(l.userData.on)nAct++;
   const n=Math.min(10000,Math.max(1,Math.round(PPS*dt*DENS),0),Math.floor(RAD_MS/(radCost*Math.max(1,nAct)))),w0=wI,tR0=performance.now();let hits=0;   // 每帧射线总耗时限制在 RAD_MS 内（帧率低时自动降低点密度）
   for(let lk=0;lk<LIDARS.length;lk++){const ld=LIDARS[lk];if(!ld.userData.on)continue;
-  ld.getWorldPosition(ro);occBegin(ro.x,ro.y,ro.z);const me=ld.matrixWorld.elements;occBins(me);const off=lk*174763;   // 射线方向用各雷达自身姿态；各雷达在花瓣序列里错开起点
+  ld.getWorldPosition(ro);occBegin(ro.x,ro.y,ro.z);const me=ld.matrixWorld.elements;occBins(me);envBins(ro.x,ro.y,ro.z,me);const off=lk*174763;   // 射线方向用各雷达自身姿态；各雷达在花瓣序列里错开起点
   for(let i=0;i<n;i++){
     const k=(++kSeq+off)&PTM,lx=PTX[k*3],ly=PTX[k*3+1],lz=PTX[k*3+2],dx=me[0]*lx+me[4]*ly+me[8]*lz,dy=me[1]*lx+me[5]*ly+me[9]*lz,dz=me[2]*lx+me[6]*ly+me[10]*lz;
     const tb=occCast(dx,dy,dz,PTB[k]);if(tb===-2)continue;   // 被紧贴的本体挡住：不必再算环境
-    let t=cast(ro.x,ro.y,ro.z,dx,dy,dz),kind=hK;if(tb>0&&(t<0||tb<t)){t=tb;kind=6}   // 本体挡在前面则命中本体
+    let t=cast(ro.x,ro.y,ro.z,dx,dy,dz,PTB[k]),kind=hK;if(tb>0&&(t<0||tb<t)){t=tb;kind=6}   // 本体挡在前面则命中本体
     if(t<0)continue;
+    let cosI=1;if(kind===1||kind===2||kind===4||kind===5){const dd=hAx===0?dx:hAx===1?dy:dz;cosI=dd<0?-dd:dd;if(cosI<.08&&Math.random()>cosI/.08)continue}   // 入射角过大（几乎擦着表面）时回波丢失；cosI 也用作反射强度
     if(LNZ){t+=gs()*.2;if(t<MINR)continue}   // 测距噪声 σ≈2 cm（Mid-360 指标：10 m 处 ≤2 cm）
     const x=ro.x+dx*t,y=ro.y+dy*t,z=ro.z+dz*t,o=(wI++%NP)*3;hits++;
     pPos[o]=x;pPos[o+1]=y;pPos[o+2]=z;pOwn[o/3]=lk;
     if(LCM===0){const hb=(Math.max(0,Math.min(1,y/20))*64|0)*3;pCol[o]=HLUT[hb];pCol[o+1]=HLUT[hb+1];pCol[o+2]=HLUT[hb+2]}
     else if(LCM===1){const c=LRGB[lk];pCol[o]=c[0];pCol[o+1]=c[1];pCol[o+2]=c[2]}
     else if(LCM===2){const hb=(Math.min(1,t/150)*64|0)*3;pCol[o]=HLUT[hb];pCol[o+1]=HLUT[hb+1];pCol[o+2]=HLUT[hb+2]}
+    else if(LCM===4){const iv=Math.min(1,cosI*2.2/(1+(t/150)*(t/150))),g=.12+.88*iv;pCol[o]=g;pCol[o+1]=g;pCol[o+2]=g*1.04}   // 反射强度：入射越正、距离越近越亮
     else{const c=KCOL[kind]||KCOL[0];pCol[o]=c[0];pCol[o+1]=c[1];pCol[o+2]=c[2]}
   }
   }
