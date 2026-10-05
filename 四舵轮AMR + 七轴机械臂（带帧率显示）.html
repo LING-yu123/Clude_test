@@ -827,7 +827,7 @@ const dRay=mkRays(DW,DH,TDH,TDV),cRay=mkRays(RW2,RH2,TRH,TRV);   // 相机系：
 const camPos=new Float32Array(DW*DH*3).fill(-1000),camCol=new Float32Array(DW*DH*3);
 const camGeo=new THREE.BufferGeometry();camGeo.setAttribute('position',new THREE.BufferAttribute(camPos,3));camGeo.setAttribute('color',new THREE.BufferAttribute(camCol,3));
 const camCloud=new THREE.Points(camGeo,new THREE.PointsMaterial({size:.14,vertexColors:true}));camCloud.frustumCulled=false;scene.add(camCloud);
-const camCloud2=new THREE.Points(camGeo,new THREE.PointsMaterial({size:.24,vertexColors:true}));camCloud2.frustumCulled=false;cloudScene.add(camCloud2);
+// （相机点云只显示在主视图里，不放进雷达点云小窗：小窗只显示雷达的点云）
 // 深度视场锥（近平面 0.3 m，远平面 5 m；相机局部单位 = 世界的一半）
 const makeFrus=(cam,color)=>{const P=[],c=(d,sx,sy)=>[sy*d*TDV,d,sx*d*TDH],n=1.5,f=25,q=[[-1,-1],[1,-1],[1,1],[-1,1]];
   q.forEach((a,i)=>{const b=q[(i+1)%4];P.push(...c(f,a[0],a[1]),...c(f,b[0],b[1]),...c(n,a[0],a[1]),...c(n,b[0],b[1]),0,0,0,...c(f,a[0],a[1]))});
@@ -873,7 +873,7 @@ function shade(x,y,z,dx,dy,dz){
 }
 const cco=new THREE.Vector3();let camAcc=0;let rkC=0,zy=0,zr=0,zp=0,zbeta=0;
 function camStep(dt){
-  const on=dco.checked;camCloud.visible=camCloud2.visible=on;frusts.forEach(f=>f.visible=on);dcw.style.display=on?'flex':'none';
+  const on=dco.checked;camCloud.visible=on;frusts.forEach(f=>f.visible=on);dcw.style.display=on?'flex':'none';
   if(!on){camJob=null;return}
   if(!camJob){camAcc+=dt;if(camAcc<1/12)return;camAcc=0;camJob=camRun()}   // 12 fps
   const t0=performance.now();while(performance.now()-t0<2.5)if(camJob.next().done){camJob=null;break}   // 一帧最多算 2.5 ms，一张图分摊到几帧完成（原来一次算完，每 83 ms 卡一下）
