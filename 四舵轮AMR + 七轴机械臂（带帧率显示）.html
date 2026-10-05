@@ -103,7 +103,7 @@ button.lk.on{background:#dc2626;border-color:#dc2626;color:#fff}
   <div id="sgn"></div><div id="sgbtn"></div>
   <label style="display:flex;gap:6px;margin-top:6px"><input type="checkbox" id="sgo" checked>显示轴线标注</label>
   <div class="lg">绿 J5轴 · 橙 J7轴 · 蓝 J1轴 · 黄点 腕心 · 紫 肩→腕连线</div></details></div>
-<div id="lp"><details open><summary><b>雷达位姿</b></summary><div id="lpt" style="display:flex;gap:4px;margin-bottom:4px"></div><label style="margin:2px 0 4px"><input type="checkbox" id="lpe" checked>启用该雷达（青 / 橙 / 紫）</label><div id="lps"></div><div style="font-size:11px;opacity:.7;margin-top:4px">相对车体中心（x 前 / y 上 / z 右）；偏航左偏为正，俯仰抬头为正，横滚右倾为正。点云按雷达自身姿态扫描。</div><div style="margin-top:6px"><label style="margin:2px 0"><span style="width:64px">点云着色</span><select id="lcm" style="flex:1"><option value="0">按高度</option><option value="1">按雷达（青/橙/紫）</option><option value="2">按距离</option><option value="3">按命中类型</option></select></label><label style="margin:2px 0"><input type="checkbox" id="lnz" checked>测距噪声（σ≈2 cm）</label><label style="margin:2px 0"><span style="width:64px">点密度</span><input id="ldn" type="range" min="0.2" max="1" step="0.05" value="1"><b id="ldv" style="width:46px;text-align:right;font-weight:500">100%</b></label><div id="lrate" style="font-size:11px;opacity:.7;min-height:15px"></div></div><button id="lpr">复位到默认位姿</button></details></div>
+<div id="lp"><details open><summary><b>雷达位姿</b></summary><div id="lpt" style="display:flex;gap:4px;margin-bottom:4px"></div><label style="margin:2px 0 4px"><input type="checkbox" id="lpe" checked>启用该雷达（青 / 橙 / 紫 / 绿）</label><div id="lps"></div><div style="font-size:11px;opacity:.7;margin-top:4px">相对车体中心（x 前 / y 上 / z 右）；偏航左偏为正，俯仰抬头为正，横滚右倾为正。点云按雷达自身姿态扫描。</div><div style="margin-top:6px"><label style="margin:2px 0"><span style="width:64px">点云着色</span><select id="lcm" style="flex:1"><option value="0">按高度</option><option value="1">按雷达（青/橙/紫/绿）</option><option value="2">按距离</option><option value="3">按命中类型</option></select></label><label style="margin:2px 0"><input type="checkbox" id="lnz" checked>测距噪声（σ≈2 cm）</label><label style="margin:2px 0"><span style="width:64px">点密度</span><input id="ldn" type="range" min="0.2" max="1" step="0.05" value="1"><b id="ldv" style="width:46px;text-align:right;font-weight:500">100%</b></label><div id="lrate" style="font-size:11px;opacity:.7;min-height:15px"></div></div><button id="lpr">复位到默认位姿</button></details></div>
 <div id="arm"><details open><summary><b id="armT">七轴机械臂</b></summary>
   <div id="armK" class="g" style="grid-template-columns:1fr 1fr;margin:4px 0 6px"><button data-k="7" class="on" style="font-size:12px;padding:5px 2px">七轴<br>冗余臂</button><button data-k="6" style="font-size:12px;padding:5px 2px">六轴 FANUC<br>M-20iD/35</button></div>
   <div id="js"></div><div id="pre"></div><div id="zn"></div><div id="tip" style="margin-top:8px"></div>
@@ -153,7 +153,7 @@ box(3.8,.25,3.4,dark,-3.3,7.625,0);        // 电池舱盖
 box(2.2,.25,1.6,acc,3.0,7.625,2.6);        // 显示/操作面板
 cyl(.4,.4,.35,M(0xdc2626,.2,.4),-5.0,7.675,-3.5);   // 急停按钮
 // Livox Mid-360：65×65×60 mm（1 单位 = 10 cm），扫描原点在光学窗口中心。方形底座 + 金属环 + 深色光学窗口带 + 顶盖
-const LIDARS=[],LCOL=[0x22e5d0,0xf59e0b,0xd946ef];   // 三台雷达：青 / 橙 / 紫，各自独立位姿
+const LIDARS=[],LCOL=[0x22e5d0,0xf59e0b,0xd946ef,0x84cc16];   // 四台雷达：青（车头）/ 橙（左前）/ 紫（右前）/ 绿（车尾），各自独立位姿
 function mkLidar(x,y,z){
   const lidar=new THREE.Group();lidar.position.set(x,y,z);robot.add(lidar);
   box(.65,.22,.65,M(0x3a424c,.6,.4),0,-.19,0,lidar);                                   // 方形底座
@@ -162,7 +162,7 @@ function mkLidar(x,y,z){
   cyl(.27,.3,.06,alu,0,.27,0,lidar);                                                    // 顶盖
   lidar.userData.on=true;LIDARS.push(lidar);return lidar;
 }
-const lidar=mkLidar(4.6,7.8,0),lidar2=mkLidar(-3.0,7.8,-4.0),lidar3=mkLidar(-3.0,7.8,4.0);   // 雷达 2/3 避开急停按钮（-5.0, -3.5）
+const lidar=mkLidar(6.4,4.0,0),lidar2=mkLidar(5.3,7.5,-5.0),lidar3=mkLidar(5.3,7.5,5.0),lidar4=mkLidar(-6.4,4.0,0);   // 默认位置由雷达位姿面板的 DEFS 设定：车头正中、左前/右前顶板边缘（倒装朝下、外倾 20°）、车尾
 
 // —— 舵轮模块：整体放大 KS 倍；车轮直径 160 mm（半径 RW=0.8 单位，1 单位 = 10 cm）——
 // 车轮在模块局部系中的半径 R0=RW/KS；轮宽、轮辋、辐条、轮毂按 WF 缩放；叉臂随轴心高度调整，模块上部（与车身连接处）尺寸不变
@@ -746,7 +746,7 @@ for(let k=0;k<PT;k++){const kk=k+1,az=((kk*PHI1)%1)*TP,u=(kk*PHI2)%1,el=ELMIN+u*
   PTX[k*3]=ce*Math.cos(az);PTX[k*3+1]=Math.sin(el);PTX[k*3+2]=-ce*Math.sin(az);PTB[k]=Math.min(NAZ-1,(az/TP*NAZ)|0)*NEL+Math.min(NEL-1,(u*NEL)|0)}
 let LCM=0,LNZ=true,DENS=1;   // 点云着色（0 高度 1 雷达 2 距离 3 类别）/ 测距噪声 / 点密度
 const KCOL=[[.7,.7,.7],[.45,.6,.4],[.95,.6,.2],[.7,.4,.9],[.4,.6,.95],[.3,.5,.85],[1,1,1]];   // 命中类型：地面 / 货箱 / 圆柱 / 箱内壁 / 箱体壳 / 机器人本体
-const LRGB=[[.13,.9,.82],[.96,.62,.04],[.85,.27,.94]];
+const LRGB=[[.13,.9,.82],[.96,.62,.04],[.85,.27,.94],[.52,.8,.09]];
 let RAD_MS=5,radCost=.0006;const lrateEl=document.getElementById('lrate');
 function radarStep(dt){
   const on=rchk.checked;cloud.visible=on;fovs.forEach((g,k)=>g.visible=on&&LIDARS[k].userData.on);rdc.style.display=on?'block':'none';
@@ -1853,7 +1853,8 @@ addEventListener('resize',resize);resize();
 
 // —— 雷达位姿控制：三台雷达各自独立。位置（cm，相对车体中心）+ 姿态（度，欧拉角 偏航 Y → 俯仰 Z → 横滚 X） ——
 (function(){
-  const DEFS=[[46,78,0,0,0,0],[-30,78,-40,0,0,0],[-30,78,40,0,0,0]],D=Math.PI/180,box=document.getElementById('lps'),ins=[],lbs=[],tabs=document.getElementById('lpt'),en=document.getElementById('lpe');
+  const DEFS=[[64,40,0,0,0,0],[53,78,-50,0,0,-160],[53,78,50,0,0,160],[-64,40,0,0,0,0]],   // 雷达 1 车头正中（离地 400 mm，在前防撞条前方）；2/3 左前/右前顶板边缘，横滚 ±160° = 倒装（朝下）并向外倾 20°；4 车尾防撞条后方（离地 400 mm）
+  D=Math.PI/180,box=document.getElementById('lps'),ins=[],lbs=[],tabs=document.getElementById('lpt'),en=document.getElementById('lpe');
   const vals=DEFS.map(d=>d.slice());let cur=0;
   const defs=[['前后 x',-200,200,1,'cm'],['高度 y',0,250,1,'cm'],['左右 z',-150,150,1,'cm'],['偏航',-180,180,1,'°'],['俯仰',-180,180,1,'°'],['横滚',-180,180,1,'°']];
   LIDARS.forEach(l=>l.rotation.order='YZX');
@@ -1861,7 +1862,7 @@ addEventListener('resize',resize);resize();
   const show=()=>{ins.forEach((inp,i)=>{inp.value=vals[cur][i];lbs[i].textContent=vals[cur][i]+defs[i][4]});en.checked=LIDARS[cur].userData.on;[...tabs.children].forEach((b,k)=>b.classList.toggle('on',k===cur))};
   defs.forEach((d,i)=>{const l=document.createElement('label');l.innerHTML=`<span>${d[0]}</span><input type="range" min="${d[1]}" max="${d[2]}" step="${d[3]}" value="0"><b></b>`;box.appendChild(l);const inp=l.querySelector('input');
     inp.oninput=()=>{vals[cur][i]=+inp.value;lbs[i].textContent=inp.value+d[4];apply(cur)};ins.push(inp);lbs.push(l.querySelector('b'))});
-  ['雷达 1','雷达 2','雷达 3'].forEach((n,k)=>{const b=document.createElement('button');b.textContent=n;b.style.cssText='width:auto;flex:1;margin-top:0';b.onclick=()=>{cur=k;show()};tabs.appendChild(b)});
+  ['车头','左前','右前','车尾'].forEach((n,k)=>{const b=document.createElement('button');b.textContent=n;b.style.cssText='width:auto;flex:1;margin-top:0';b.onclick=()=>{cur=k;show()};tabs.appendChild(b)});
   en.onchange=()=>{const k=cur;LIDARS[k].userData.on=en.checked;if(!en.checked){for(let i=0;i<NP;i++)if(pOwn[i]===k)pPos[i*3]=pPos[i*3+1]=pPos[i*3+2]=-1000;   // 关掉的雷达：已有的点云一并清除
     const a=pGeo.attributes.position;a.updateRange.offset=0;a.updateRange.count=-1;a.needsUpdate=true}};
   document.getElementById('lcm').onchange=e=>{LCM=+e.target.value};document.getElementById('lnz').onchange=e=>{LNZ=e.target.checked};
