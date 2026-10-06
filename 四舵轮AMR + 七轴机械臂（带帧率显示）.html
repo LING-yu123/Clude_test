@@ -1388,7 +1388,7 @@ const liftWait=(cd,dt)=>{if(cd.lt==null)LIFT_OV=null;if(!LIFT)return false;const
     const q=PRE['收纳'].slice(0,7);q[0]=qc[0];qs=0;sls.value=0;setJ(q);apReturn=null;ldAtEnd=false;lw.st=1;lw.t=0;lw.want=want;return true}
   if(lw.st===1){if(liftIdle()&&Math.abs(qsc-qs)<3){setLift(lw.want);qE=Math.sin(++LN*12.9898)*LIFT_ERR;lw.st=2;lw.t=0}return true}
   if(lw.st===2){if(Math.abs(qLc-liftTgt())<.01){lw.st=3;lw.t=0}return true}
-  lw.t+=dt*SPD;if(lw.t>=LIFT_SETTLE){lw.st=0;qs=100;sls.value=100;return false}return true};   // 升降完成：吸盘板重新伸出（收拢时为 0）
+  lw.t+=dt*SPD;if(lw.t>=LIFT_SETTLE){lw.st=0;qs=100;sls.value=100;return true}return true};   // 完成后多等一帧，让下一次调用重新核对目标高度（中途被打断时目标可能已变）   // 升降完成：吸盘板重新伸出（收拢时为 0）
 const liftMsg=()=>['','机械臂收拢到安全姿态（升降前）…',`底座升降到 ${Math.round(qL*10)} cm（臂静止）…`,'升降到位，静置测高…'][lw.st];   // 需要升降时返回 true：暂停本步，等底座到位后再规划
 function mkObb(){return{c:[0,0,0],a:[[1,0,0],[0,1,0],[0,0,1]],h:[0,0,0]}}
 function obbOfEntry(b,o,margin){   // 把 OCC 条目（部件局部盒）转成世界系有向盒
