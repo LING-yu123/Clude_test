@@ -588,7 +588,7 @@ function buildContainer(v){
   // 货物：堆满，一整面一整面（整个横截面：6 箱宽 × 6 层）从尾部向门口码放，货面平整
   const NC=Math.floor(W/3.9),NL=Math.floor((H-.4)/3.85),hc=v.hc||Math.min(4.6,(H-.4)/NL),R=mul32(v.seed),SL=6,slices=Math.max(1,Math.min(4,Math.floor((L-30)/6))),cartons=[],z0=-NC*3.9/2+1.95;
   Object.assign(E,{NC,NL,W,L,rgb:[color>>16&255,color>>8&255,color&255]});
-  const Xend=L-.05,Xf=Xend-slices*SL;
+  const Xend=L-.35,Xf=Xend-slices*SL;   // 货物与后壁留 3.5 cm 间隙（真实装箱不会顶死后壁，且吸盘板几乎与箱同长，需要这点余量）
   for(let sl=0;sl<slices;sl++)for(let j=0;j<NC;j++)for(let l=0;l<NL;l++)cartons.push([Xend-2.95-sl*SL,hc*(l+.5),z0+j*3.9,sl]);
   E.bx.push([(Xf+Xend)/2,hc*NL/2,0,(Xend-Xf)/2,hc*NL/2,W/2]);E.cy0=hc*NL/2;
   addBumps(cg,E,[[2,-5.85],[6,1.35]],.01);   // 只放在门口一带；卸货工作区保持平整（车体倾斜会破坏机械臂的解析逆解）
