@@ -90,6 +90,8 @@ h2 .n{display:inline-block;min-width:28px;color:var(--sub);font-weight:500}
 .pros li::marker{color:var(--ok)}.cons li::marker{color:var(--bad)}
 .rec td:first-child{white-space:nowrap;font-weight:600}
 .callout{border-left:4px solid var(--c6l);background:var(--card);border-radius:0 12px 12px 0;padding:12px 16px;margin:14px 0;border-top:1px solid var(--line);border-right:1px solid var(--line);border-bottom:1px solid var(--line)}
+.ev{display:inline-block;font-size:11px;line-height:1;padding:2px 6px;border-radius:5px;margin-left:4px;vertical-align:1px;font-weight:600;white-space:nowrap}.e1{background:#e3f5ea;color:#1a7f45}.e2{background:#e6ecff;color:#3550c8}.e3{background:#fdf1d6;color:#9a6700}.e4{background:#eceff3;color:#5a6472}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .e1{background:#14301f;color:#4cc27d}:root:not([data-theme="light"]) .e2{background:#1b2347;color:#8aa0ff}:root:not([data-theme="light"]) .e3{background:#38300f;color:#f0b73a}:root:not([data-theme="light"]) .e4{background:#262d37;color:#9aa5b3}}
 nav{position:sticky;top:0;z-index:5;display:flex;gap:4px;flex-wrap:wrap;padding:8px 0;margin:0 -4px;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
 nav a{color:var(--sub);text-decoration:none;font-size:13px;padding:3px 10px;border-radius:99px}nav a:hover{background:var(--card);color:var(--ink)}
 .gl{margin-top:14px;max-width:860px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:8px 14px;font-size:13.5px}.gl summary{cursor:pointer;color:var(--sub)}.gl dt{font-weight:600;margin-top:8px}.gl dd{margin:2px 0 0;color:var(--sub)}
@@ -104,7 +106,7 @@ footer{margin-top:60px;color:var(--sub);font-size:12.5px;border-top:1px solid va
 <header>
   <div class="eyebrow">四舵轮 AMR 车厢装卸仿真 · 机械臂方案评估</div>
   <h1>七轴、六轴、六轴 + 底座升降：哪一种更适合烟草车厢装卸？</h1>
-  <p>基于本仓库仿真器的实测结果：11 种车厢（含内宽 2.9 m、内高 2.7–2.9 m 的烟草厢货/半挂）× 3 种机械臂 × 车尾/右侧两种输送带位置 × 装车/卸货，共 132 组、累计约 2 万箱次。下面的动图是用真实杆长做的侧视运动学示意，帮助理解<em>为什么</em>会出现这些结果。</p>
+  <p>基于本仓库仿真器的实测结果：11 种车厢（含内宽 2.9 m、内高 2.7–2.9 m 的烟草厢货/半挂）× 3 种机械臂 × 车尾/右侧两种输送带位置 × 装车/卸货，共 132 组、累计约 2 万箱次，并对照了业界资料（波士顿动力 Stretch、Dexterity Mech 等）和机器人学文献。下面的动图是用真实杆长做的侧视运动学示意，帮助理解<em>为什么</em>会出现这些结果。</p>
 <details class="gl"><summary>名词说明（第一次看建议点开）</summary><dl>
 <dt>顶吸 / 前吸</dt><dd>顶吸：吸盘从箱子正上方下压吸住；前吸：吸盘水平推向箱子的正面吸住。最上层顶上没空间，只能前吸。</dd>
 <dt>冗余（七轴）</dt><dd>末端位姿（吸盘的位置和朝向）固定时，机械臂还有一个自由度可以调整肘部姿态；六轴没有这个自由度。</dd>
@@ -112,12 +114,12 @@ footer{margin-top:60px;color:var(--sub);font-size:12.5px;border-top:1px solid va
 <dt>跳位 / 停机</dt><dd>装车时某个箱位机械臂够不着，就跳过它继续装其余位置（跳位）；卸货时够不着就整体停下（停机）。</dd>
 <dt>仿真秒</dt><dd>仿真器内部时间，不含真实现场的加减速、建压、定位和安全等待，只适合横向比较。</dd>
 </dl></details></header>
-<nav id="nav" aria-label="章节"><a href="#s0">结论</a><a href="#s1">动图</a><a href="#s2">可达性</a><a href="#s3">七轴动作</a><a href="#s4">实测数据</a><a href="#s6">分析</a><a href="#s7">选型</a><a href="#s8">方法</a></nav>
+<nav id="nav" aria-label="章节"><a href="#s0">结论</a><a href="#s1">动图</a><a href="#s2">可达性</a><a href="#s3">七轴动作</a><a href="#s4">实测数据</a><a href="#s5">理论与业界</a><a href="#s6">分析</a><a href="#s7">选型</a><a href="#s8">方法</a></nav>
 
 <section id="s0">
 <h2><span class="n">0</span>结论先行</h2>
 <div class="concl" id="concl"></div>
-<div class="callout"><b>一句话选型：</b>追求最高可用度、不在意定制成本 → <b>七轴</b>；想用成熟工业臂（FANUC M-20iD/35）又要覆盖 2.9 m 宽、6–7 层的车厢 → <b>六轴 + 底座升降</b>；<b>纯六轴</b>只适合内宽 ≤ 2.7 m、输送带在车尾的车厢，遇到宽车厢或右侧输送带会明显够不着。</div>
+<div class="callout"><b>一句话：</b>就车厢内作业而言，<b>七轴的优势是覆盖面和可用度</b>（同一吸盘位姿有多种姿态可选，侧壁、车顶、货垛都很近的货厢里更容易找到可行解；业界的 Stretch、Mech 也选 ≥7 轴的臂）；<b>六轴+升降</b>只在车尾输送带装车快约 5%，代价是升降不联动的时序、立柱刚度/精度和车顶余量，且不增加侧向够得着；<b>纯六轴</b>只适合窄车厢 + 车尾输送带。成本和可靠性没有数据，选型时必须补上。证据类型见第 5 节。</div>
 </section>
 
 <section id="s1">
@@ -218,71 +220,115 @@ footer{margin-top:60px;color:var(--sub);font-size:12.5px;border-top:1px solid va
 <div class="legend" style="margin-top:10px"><span style="--c:var(--ok)">✓ 全部完成</span><span style="--c:var(--warn)">数字 = 装车时被跳过的箱位</span><span style="--c:var(--bad)">数字 = 卸货中途停机时已卸箱数</span></div></div>
 </section>
 
+<section id="s5">
+<h2><span class="n">5</span>理论与业界：不只看仿真</h2>
+<p class="lead">下面每一条都标了证据类型：<span class="ev e1">仿真</span>＝本仓库仿真器实测；<span class="ev e2">理论</span>＝机器人学文献/常识；<span class="ev e3">业界</span>＝公开的产品资料；<span class="ev e4">推断</span>＝我的工程判断，没有直接数据支撑。业界和文献的数据我是通过网络检索得到的摘要，<b>建议你对照原始链接核对</b>（部分厂商官网在我这里无法直接打开）。</p>
+<div class="card scroll"><table class="tbl">
+<thead><tr><th style="min-width:200px">事实</th><th style="min-width:140px">来源</th><th style="min-width:240px">对本评估的含义</th></tr></thead><tbody>
+<tr><td><b>波士顿动力 Stretch</b>（专为卡车/集装箱卸货设计的商用机器人）：机械臂 <b>7 自由度</b>；最大箱重 50 磅（23 kg）；最大垂直 / 水平伸展 3.2 m / 1.95 m；底座约 1 × 1.25 m；可进入 20/40 尺集装箱和厢式拖车；电池最长 16 小时。 <span class="ev e3">业界</span></td>
+  <td><a href="https://bostondynamics.com/wp-content/uploads/2026/03/Stretch-Brochure-2026-Final-1.pdf">Stretch 产品册</a>、<a href="https://www.popsci.com/technology/boston-dynamics/">PopSci 报道</a></td>
+  <td>商用的车厢卸货机器人选了 7 自由度臂，与“货厢窄、需要姿态余量”的需求相符。但它只是<b>一个</b>设计选择，不能证明七轴一定更优；它的臂是定制轻量臂，负载 23 kg，低于 35 kg 级工业臂，与本仿真里的两种臂也不是同一个东西。</td></tr>
+<tr><td><b>Dexterity “Mech”</b>（川崎重工为其新开发的臂，用于卡车装车）：<b>8 轴</b>，目的是“在狭窄的卡车货厢里保证最大作业范围和运动自由度”；单臂最大负载 30 kg。 <span class="ev e3">业界</span></td>
+  <td>川崎重工发布稿（经 <a href="https://www.automate.org/news/kawasaki-develops-robotic-arm-for-dexterity-a-u-s-unicorn-company-installed-on-mech-the-worlds-first-ai-vanning-robot-for-logistics-sector/aph">automate.org</a> 转载）</td>
+  <td>第二个车厢装卸商用机器人同样选了<b>多于 6 轴</b>，理由正是狭窄货厢。两个案例都说明业界在这类场景里倾向冗余臂；但它们的负载（23 / 30 kg）都低于 FANUC M-20iD/35 的 35 kg，我没有找到 35 kg 级的现成七轴产品——这是“没找到”，不是“不存在”。</td></tr>
+<tr><td><b>Pickle</b> 的卸货机器人：顶部抓取最大 100 磅（约 45 kg），正面（前吸）抓取最大 60 磅（约 27 kg）。 <span class="ev e3">业界</span></td>
+  <td><a href="https://www.logisticsmgmt.com/article/2023_state_of_robotics_measurable_performance_and_integration_come_into_focus/ProMat">Logistics Management</a></td>
+  <td>前吸的承载低于顶吸，这与本仿真的约束一致：最上层只能前吸（顶上没有空间）。重箱在最上层是共同的薄弱环节，与选哪种臂无关。</td></tr>
+<tr><td><b>FANUC M-20iD/35</b>：6 轴；负载 35 kg；臂展 1831 mm；重复定位精度 ±0.03 mm；本体质量 250 kg；J1 最高 180°/s；手腕和手臂 IP67。 <span class="ev e3">业界</span></td>
+  <td><a href="https://www.robots.com/robots/fanuc-m-20id-35">robots.com 产品页</a></td>
+  <td>成熟、负载大、精度高。但本体 250 kg，如果挂在升降柱上，升降柱要承受“250 kg 本体 + 负载”的倾覆力矩 <span class="ev e4">推断</span>。</td></tr>
+<tr><td><b>7 自由度臂的冗余</b>：完成 6 维任务时有 1 个冗余度，末端位姿不变时可做“自运动”，被用来<b>避关节极限、避腕/肩奇异、避障、缩短行程</b>。 <span class="ev e2">理论</span></td>
+  <td><a href="https://arxiv.org/pdf/2012.14578">arXiv 2012.14578</a> 等（实时全身避障；零空间控制）</td>
+  <td>这正是第 3.1 节演示的内容。文献同时说明：利用冗余需要额外的零空间规划/控制，求解比六轴复杂 <span class="ev e4">推断</span>。</td></tr>
+<tr><td><b>升降柱 / 垂直升降机构</b>：精度主要取决于刚度；机械臂相对立柱的位置不对称，会造成各向异性的刚度、精度和加速度；机构刚度不足会降低精度。 <span class="ev e2">理论</span></td>
+  <td><a href="https://www.linearmotiontips.com/whats-the-difference-between-vertical-lift-stage-and-z-axis-actuator/">linearmotiontips</a>、<a href="https://www.cmco.com/en-sg/products/power-and-motion-technology/actuators/lifting-columns/phoenix-robotics">立柱产品资料</a></td>
+  <td>六轴+升降里，升降轴是一个刚度较低、精度较差的串联环节，误差会传到臂端；需要升降后重新测高/标定。本仿真用“±8 mm + 静置 1 s 测高”来模拟。</td></tr>
+<tr><td><b>Stretch 的厂商宣称吞吐</b>：约 800 箱/小时（2021 年发布时的说法）。 <span class="ev e3">业界</span></td>
+  <td><a href="https://www.popsci.com/technology/boston-dynamics/">PopSci</a></td>
+  <td>本仿真每箱 9–14 s，对应约 250–400 箱/小时，低于这个宣称值。原因我只能<b>推断</b>：仿真里的关节速度取得较保守，且厂商取的是理想工况；两者不具可比性，所以本页的节拍只用于三种臂之间互相比较。</td></tr>
+</tbody></table></div>
+<div class="grid g2" style="margin-top:14px">
+  <div class="card"><b>这些资料能说明什么</b><ul>
+    <li>两个公开的车厢装卸商用机器人（Stretch、Mech）都选了 ≥7 轴的臂，Mech 的发布稿明确把“狭窄货厢”作为理由。</li>
+    <li>冗余的作用（避极限、避奇异、避障）在文献里有明确结论，和本仿真观察到的一致。</li>
+    <li>升降轴引入刚度和精度问题，是机械常识，不是仿真的人为设定。</li></ul></div>
+  <div class="card"><b>这些资料不能说明什么</b><ul>
+    <li>不能说明七轴在<b>成本、可靠性、维护</b>上优于六轴+升降——我没有找到公开的对比数据。</li>
+    <li>没有找到“六轴+升降柱”与“七轴”在同一车厢任务上的公开对照实验；本页的对照只来自本仓库的仿真。</li>
+    <li>厂商数据属于宣传口径，我无法验证；搜索摘要里的数值请以原文为准。</li></ul></div>
+</div>
+</section>
+
 <section id="s6">
 <h2><span class="n">6</span>分析：为什么会这样</h2>
 <div class="grid g2">
-  <div class="card"><h3 style="margin-top:0"><span class="tag t7">七轴</span> 冗余自由度换来的鲁棒性</h3>
+  <div class="card"><h3 style="margin-top:0"><span class="tag t7">七轴</span> 在车厢内作业的优势</h3>
     <ul class="pros">
-      <li>末端位姿固定时，肘部/前臂还有一个自由度可调（仿真里扫描 θ3 冗余角）。这让它能<b>绕开货垛、侧壁、车顶</b>，也能避开关节极限和肩部奇异，所以几乎所有车型、所有输送带位置都能完成。</li>
-      <li>杆长是为车厢专门优化的（短而粗的三段臂），回转半径小，在窄车厢里转身余量大。</li>
-      <li>但它并不更快：每箱 13.4 s，与纯六轴（13.5 s）接近、比六轴+升降（12.3 s，已含先升降再动臂的时序开销）慢，关节累计行程还最大（见第 3 节）——冗余买的是<b>可达性与避障</b>，不是节拍。</li>
+      <li><b>完成度最高。</b>装车 22 组中 21 组零跳位、卸货 22/22；纯六轴卸货 7 组提前停机、装车 9 组有跳位。差距集中在内宽 2.9 m（7 列）的车厢和右侧输送带。 <span class="ev e1">仿真</span></li>
+      <li><b>同一个吸盘位姿有一整族构型。</b>末端位姿不变时，肘部和前臂还能摆动（3.1 节：同一位姿七轴 33 个构型、六轴 2 个）。货厢里侧壁、车顶、货垛、车体都离得很近，多一个自由度意味着更容易找到可行姿态——边列、最上层、贴着侧壁的作业尤其依赖这一点。 <span class="ev e2">理论</span></li>
+      <li><b>业界在同类场景的选择。</b>Stretch 用 7 自由度臂；Dexterity Mech 用 8 轴臂，并明确说是为了在狭窄卡车货厢里保证作业范围和运动自由度。 <span class="ev e3">业界</span></li>
+      <li><b>不依赖额外机构，没有“先停臂再升降”的时序。</b>右侧输送带下卸货 9.61 s/箱，比六轴+升降（11.10 s/箱）快 13%；装车 13.62 对 14.23，也快 4%。 <span class="ev e1">仿真</span></li>
     </ul>
+    <b style="font-size:13.5px">七轴的缺点和代价</b>
     <ul class="cons">
-      <li>市面上这个负载等级（≥ 30 kg）的七轴臂很少，往往要定制；成本、维护、备件都不如成熟六轴。</li>
-      <li>冗余求解要扫描更多构型，规划更慢（仿真里已用解析 IK + 缓存压到可接受）。</li>
+      <li><b>并不更快。</b>20HQ 车尾装车每箱 13.4 s，与纯六轴（13.5 s）接近，比六轴+升降（12.3 s）慢；关节累计行程最大（每箱 2304°，六轴 2136°，六轴+升降 1841°）。冗余买的是可达性，不是节拍。 <span class="ev e1">仿真</span></li>
+      <li><b>碰撞审计上没有优势。</b>默认设置下，七轴有 21% 的帧与侧壁/车顶/货垛/车体重叠（2.8% 穿透 ≥10 cm），六轴 16% / 3.7%，六轴+升降 17% / 2.4%——仿真的规划并没有真正利用冗余去避障。 <span class="ev e1">仿真</span></li>
+      <li><b>现成的高负载产品少。</b>我检索到的两个商用案例负载是 23 kg（Stretch）和 30 kg/臂（Mech），低于 35 kg；没找到 35 kg 级的现成七轴臂（“没找到”不等于“没有”）。 <span class="ev e3">业界</span></li>
+      <li><b>规划、标定、维护更复杂。</b>利用冗余需要零空间规划，机械上多一个关节、一套减速机和线缆。 <span class="ev e4">推断</span></li>
     </ul></div>
-  <div class="card"><h3 style="margin-top:0"><span class="tag t6">六轴</span> 成熟、便宜，但“一条路走到黑”</h3>
+  <div class="card"><h3 style="margin-top:0"><span class="tag t6l">六轴 + 升降</span> 的优点与缺点</h3>
     <ul class="pros">
-      <li>FANUC M-20iD/35：负载 35 kg、臂展 1831 mm、IP67，是工业现场最成熟的一类，采购、备件、标定、安全认证都现成。</li>
-      <li>车尾输送带、窄车厢（内宽 ≤ 2.7 m）下表现接近七轴。</li>
+      <li>沿用成熟的 6 轴工业臂（M-20iD/35：35 kg、1831 mm、±0.03 mm）。 <span class="ev e3">业界</span></li>
+      <li>20HQ 车尾输送带装车每箱 12.4 s，比七轴（13.1 s）快 5%、比纯六轴（13.7 s）快 9%；卸货 22/22 完成。 <span class="ev e1">仿真</span></li>
     </ul>
+    <b style="font-size:13.5px">缺点（逐条标证据类型）</b>
     <ul class="cons">
-      <li>没有冗余：末端位姿给定，臂的构型基本唯一，碰壁/碰顶就只能“放弃该箱位”。</li>
-      <li>肩部在 1.28 m 高（比七轴高 0.37 m），对上层有利，但近处下层需要大幅折叠；输送带在右侧、内宽 2.9 m 时机器人被挤向左壁，臂展 1.83 m <b>够不到最右侧一列</b>。</li>
-      <li>实测：右侧输送带 + 7 列车厢，卸货在卸完最外一面的一部分后就停机（只卸了 35–36 箱 / 168）。</li>
+      <li><b>升降与机械臂不联动，且精度不高。</b>必须“收拢 → 升降（臂静止）→ 静置测高 → 再规划动臂”，每次换高度约多花 3 s；右侧输送带下节拍反而不如七轴：装车 14.23 s/箱（慢 4.5%）、卸货 11.10 s/箱（慢 15%）。 <span class="ev e1">仿真</span>（升降精度低、不联动来自现场工程经验）</li>
+      <li><b>升降柱的刚度和精度。</b>精度主要取决于刚度；臂相对立柱不对称会造成各向异性的刚度/精度/加速度。M-20iD/35 本体 250 kg，立柱要承受本体加负载的倾覆力矩，误差会传到臂端，所以必须升降后重新测高。 <span class="ev e2">理论</span><span class="ev e4">推断</span></li>
+      <li><b>车顶余量限制升降行程。</b>20HQ 车尾装车实测：升 40 cm 时，小臂在 1.9% 的帧里穿透车顶 ≥10 cm；升 20 cm 则没有 ≥10 cm 的穿透，但速度收益从缩短 17% 降到 12%（1989 s → 1754 s，对比不升降）。货厢净高只有 2.4–2.9 m，升降行程不可能大。 <span class="ev e1">仿真</span></li>
+      <li><b>升降不增加侧向够得着，也不增加姿态自由度。</b>右侧输送带 + 7 列宽车厢下，六轴+升降装车有 8 个车型仍有跳位，与纯六轴（8 个）一样；它改善的是垂直方向，不是左右。 <span class="ev e1">仿真</span></li>
+      <li><b>多一个机构，就多一组故障点和安全要求。</b>防坠、急停、限位、润滑维护；本体加立柱抬高了 AMR 的重心。 <span class="ev e4">推断</span></li>
+      <li><b>优势只出现在一个工况。</b>仅车尾输送带的装车比七轴快；卸货（9.66 对 9.30 s/箱）和右侧输送带都不占优。 <span class="ev e1">仿真</span></li>
     </ul></div>
-  <div class="card"><h3 style="margin-top:0"><span class="tag t6l">六轴 + 升降</span> 用一个直线轴补回大部分差距</h3>
+  <div class="card"><h3 style="margin-top:0"><span class="tag t6">六轴</span> 不带升降</h3>
     <ul class="pros">
-      <li>沿用成熟六轴臂，底座在 0–60 cm 竖直升降。升降让顶吸时“手腕不用折得那么狠”，上层、远处的箱子变得好够。</li>
-      <li>实测卸货 22/22 全部完成（与七轴持平）；车尾装车平均每箱 12.42 s，比不带升降的六轴快 9%，比七轴快 5%。</li>
-      <li>升降只在中间几层（顶吸）和“规划不到”时才动，通常每个货面的每一层只在换层时升一次。</li>
+      <li>成熟、负载大、精度高、IP67，采购和维护门槛最低。 <span class="ev e3">业界</span></li>
+      <li>输送带在车尾、内宽 ≤ 2.7 m（≤ 6 列）时，装卸都能完成，与七轴基本一致。 <span class="ev e1">仿真</span></li>
     </ul>
     <ul class="cons">
-      <li><b>升降和机械臂不联动，且精度不高</b>：必须先把臂收拢、再升降、再静置测高，然后才能重新规划、动臂（仿真已按此时序：收拢约 1 s + 升降 0.2 m/s + 静置 1 s，定位误差 ±8 mm）。每次升降约多花 3 s，右侧输送带下节拍优势消失（右侧装车 14.23 s/箱，比七轴慢 4.5%；卸货 11.10 s/箱，比七轴慢 15%）。</li>
-      <li>升降立柱要承受臂的整个倾覆力矩：刚度、重复定位精度、成本、安全（急停防坠）都要额外设计。</li>
-      <li>车顶限制：升高会压缩顶吸的上方空间，所以<b>最上层不升</b>；仿真里立柱与车顶没有碰撞检测，实际要加限位。</li>
-      <li>仍然是六轴：输送带在右侧时，装车在 7 列的宽车厢里仍有 2–12 个最外/最上箱位够不着被跳过（车尾输送带下 22 组里零跳位）。</li>
+      <li><b>没有冗余</b>：末端位姿给定后构型基本唯一，碰壁/碰顶就只能放弃这个箱位。 <span class="ev e2">理论</span></li>
+      <li>实测：右侧输送带 + 7 列车厢，卸货在卸完最外一面的一部分后就停机（只卸了 35–36 箱 / 168）；13.5 m 加高车（7 层）车尾也有 4 个跳位。 <span class="ev e1">仿真</span></li>
+      <li>臂展 1.83 m：输送带在右侧、内宽 2.9 m 时机器人被挤向左壁，够不到最右侧一列。 <span class="ev e1">仿真</span></li>
     </ul></div>
   <div class="card"><h3 style="margin-top:0">车厢尺寸怎么影响选择</h3>
     <ul>
-      <li><b>内宽</b>决定列数：2.9 m → 7 列，机械臂要横向够到 ±1.4 m 之外的最外列，同时输送带还要占掉一侧的空间。右侧输送带时机器人只能偏向左壁，右侧最外列离肩 11+ 个单位，六轴够不到。</li>
-      <li><b>内高</b>决定层数：2.9 m → 7 层，最上层前吸时手臂要整个抬高、手腕水平推入，六轴缺少调整手段，13.5 m 加高车（7 层）车尾装车就出现了跳位（纯六轴 4 个，七轴和六轴+升降为 0）。</li>
-      <li><b>车长</b>几乎不影响可达性，只影响输送线长度和行走时间；长车的耗时主要多在行走。</li>
+      <li><b>内宽</b>决定列数：2.9 m → 7 列。输送带在右侧时机器人只能偏向左壁，右侧最外列离肩更远，六轴够不到。 <span class="ev e1">仿真</span></li>
+      <li><b>内高</b>决定层数：2.9 m → 7 层，最上层前吸时手臂要整个抬高、手腕水平推入，没有冗余的六轴缺少调整手段。 <span class="ev e1">仿真</span></li>
+      <li><b>车长</b>几乎不影响可达性，只影响输送线长度和行走时间。 <span class="ev e1">仿真</span></li>
     </ul>
-    <div class="note">“最外列”和“最上层”是所有方案的共同难点，区别在于七轴 / 六轴+升降能想办法，纯六轴不能。</div></div>
+    <div class="note">“最外列”和“最上层”是所有方案的共同难点：七轴靠冗余找姿态，六轴+升降靠垂直行程（只解决高度，不解决左右）。</div></div>
 </div>
 </section>
 
 <section id="s7">
 <h2><span class="n">7</span>结论与选型建议</h2>
 <div class="card scroll"><table class="tbl rec">
-<thead><tr><th>场景</th><th>推荐</th><th>理由</th></tr></thead>
+<thead><tr><th>场景</th><th>倾向</th><th>依据</th></tr></thead>
 <tbody>
-<tr><td>2.9 m 宽 / 2.7–2.9 m 高，输送带在右侧</td><td><span class="tag t7">七轴</span> 或 <span class="tag t6l">六轴+升降</span></td><td>纯六轴在这里卸货会停机；七轴全部完成，六轴+升降卸货全部完成、装车少量跳位。</td></tr>
-<tr><td>输送带在车尾，各种内宽</td><td><span class="tag t6l">六轴+升降</span></td><td>车尾装车最快（12.42 s/箱）、卸货全部完成，且用成熟臂；但升降要先停臂再升降再测高，有时序开销。纯六轴仅在 13.5 m 加高车（7 层）上出问题。</td></tr>
-<tr><td>内宽 ≤ 2.7 m、6 层以内、输送带车尾，预算有限</td><td><span class="tag t6">六轴</span></td><td>此范围内三者都能完成，纯六轴最便宜、最易维护。</td></tr>
-<tr><td>追求极限可用度、车型杂、不想有“跳箱位”</td><td><span class="tag t7">七轴</span></td><td>装车 22 组里 21 组零跳位，卸货 22/22；冗余自由度是通用性的来源。</td></tr>
+<tr><td>2.9 m 宽（7 列）/ 2.7–2.9 m 高，输送带在右侧</td><td><span class="tag t7">七轴</span></td><td>七轴装卸全部完成、跳位最少；六轴+升降装车仍有跳位且卸货慢 15%；纯六轴卸货会停机。 <span class="ev e1">仿真</span>；业界同类场景选冗余臂 <span class="ev e3">业界</span></td></tr>
+<tr><td>输送带在车尾，各种内宽</td><td><span class="tag t6l">六轴+升降</span> 或 <span class="tag t7">七轴</span></td><td>六轴+升降装车快 5%，七轴免去升降时序、卸货略快；两者都能完成。取舍在于“用成熟 6 轴臂 + 升降机构”还是“用冗余臂”，成本数据我没有。 <span class="ev e1">仿真</span><span class="ev e4">推断</span></td></tr>
+<tr><td>内宽 ≤ 2.7 m、≤ 6 层、输送带在车尾，预算有限</td><td><span class="tag t6">六轴</span></td><td>此范围内三者都能完成，纯六轴最成熟、最便宜 <span class="ev e1">仿真</span><span class="ev e3">业界</span></td></tr>
+<tr><td>车型杂、不想有“跳箱位”、对最边上/最顶上的箱位也要覆盖</td><td><span class="tag t7">七轴</span></td><td>装车 22 组里 21 组零跳位、卸货 22/22。 <span class="ev e1">仿真</span></td></tr>
 </tbody></table></div>
-
-<div class="callout" style="border-left-color:var(--c7)"><b>综合判断：</b>在“既要覆盖烟草车厢的 2.9 m 宽、2.7 m 高主流尺寸，又要走成熟工业臂”的前提下，<b>六轴 + 底座升降</b>是性价比最高的方案：可达性逼近七轴，车尾输送带下装车还略快；但升降与机械臂不联动、精度低，必须“先升降、再动臂”，右侧输送带下节拍会比七轴慢；如果项目允许定制机械臂，<b>七轴</b>依然是上限最高、最省心的选择。<b>纯六轴</b>不建议作为通用方案。</div>
-
-<h3 style="margin:22px 0 6px;font-size:17px">局限与后续</h3>
+<div class="callout" style="border-left-color:var(--c7)"><b>综合判断（不含成本数据）：</b>就“车厢内作业”这件事本身，<b>七轴的优势是覆盖面和可用度</b>：同一个吸盘位姿有多种姿态可选，在侧壁、车顶、货垛都很近的货厢里更容易找到可行解，仿真里装卸的完成度最高，业界的车厢装卸机器人（Stretch、Mech）也选了 ≥7 轴的臂。<b>六轴+升降的优势很窄</b>——只在车尾输送带装车快 5%，代价是升降不联动的时序、立柱刚度/精度问题和车顶余量限制，且不增加侧向够得着。<b>纯六轴</b>只适合窄车厢 + 车尾输送带。这些结论都没有包含采购、维护和可靠性的成本，实际选型必须补上。</div>
+<h3 style="margin:22px 0 6px;font-size:17px">局限</h3>
 <ul>
-  <li>以上全部来自仿真：节拍是仿真秒，没有计入真实的加减速、吸盘建压、视觉定位和安全停等时间，数值适合横向比较，不能直接当作现场节拍。</li>
-  <li>动图和可达性地图是<b>侧视平面</b>的运动学示意（用真实杆长，但没有碰撞到货垛的细节，也没有左右方向），可达性的“左右”部分由 3D 仿真实测体现。</li>
-  <li>升降立柱和车顶之间没有碰撞检测；真实方案需要加高度限位、立柱刚度/误差分析与急停防坠。</li>
+  <li>三种臂的对照<b>只来自本仓库的仿真</b>；业界和文献资料只能佐证方向，不能当作同条件的对比数据。</li>
+  <li>仿真节拍是仿真秒，没有计入真实的加减速、吸盘建压、视觉定位和安全停等待，只适合横向比较；仿真吞吐（约 250–400 箱/小时）低于 Stretch 厂商宣称的 800 箱/小时，二者不可直接比较。</li>
+  <li>默认设置下规划不检查碰撞，运动过程中仍有重叠（见第 8 节碰撞审计）；避障规划开启后整车装卸会卡住，尚未解决。</li>
+  <li>升降立柱的刚度、误差、倾覆稳定性在仿真里只是简化（±8 mm + 静置测高）；没有做 AMR 带臂的倾覆和承载校核，也没有验证吸盘能否稳定吸住满载烟箱。</li>
   <li>车长清单来自常见规格估计，内宽 2.5–2.9 m、内高 2.5–2.9 m 来自现场同事提供的范围；若有实际车型清单，应替换后重跑。</li>
-  <li>右侧输送带 + 2.9 m 宽车厢仍有少量最外/最上箱位够不着，可通过加宽输送带避让、或让机器人在最后一列前暂停输送带来改善（未实现）。</li>
+  <li>业界数据来自检索摘要（部分官网无法直接打开），请以原始链接为准。</li>
 </ul>
 </section>
 
@@ -308,7 +354,7 @@ footer{margin-top:60px;color:var(--sub);font-size:12.5px;border-top:1px solid va
 
 </section>
 
-<footer>数据来自仓库内仿真（单文件 HTML + three.js），矩阵回归脚本不在仓库内；本页所有动画均在浏览器本地计算，无外部依赖。</footer>
+<footer>外部资料来源：<a href="https://bostondynamics.com/wp-content/uploads/2026/03/Stretch-Brochure-2026-Final-1.pdf">Boston Dynamics Stretch 产品册</a> · <a href="https://www.popsci.com/technology/boston-dynamics/">PopSci</a> · <a href="https://www.automate.org/news/kawasaki-develops-robotic-arm-for-dexterity-a-u-s-unicorn-company-installed-on-mech-the-worlds-first-ai-vanning-robot-for-logistics-sector/aph">Kawasaki / Dexterity Mech</a> · <a href="https://www.logisticsmgmt.com/article/2023_state_of_robotics_measurable_performance_and_integration_come_into_focus/ProMat">Logistics Management</a> · <a href="https://www.robots.com/robots/fanuc-m-20id-35">FANUC M-20iD/35</a> · <a href="https://arxiv.org/pdf/2012.14578">arXiv 2012.14578</a> · <a href="https://www.linearmotiontips.com/whats-the-difference-between-vertical-lift-stage-and-z-axis-actuator/">linearmotiontips</a>。数据来自仓库内仿真（单文件 HTML + three.js），矩阵回归脚本不在仓库内；本页所有动画均在浏览器本地计算，无外部依赖。</footer>
 </div>
 
 <script>
@@ -322,9 +368,9 @@ const $=id=>document.getElementById(id);
 /* ===== 结论卡 + 完成度 ===== */
 function stat(arm,op){const a=D.filter(r=>r.arm===arm&&r.op===op);return{tot:a.length,clean:a.filter(r=>r.ok&&!r.skip).length,skip:a.filter(r=>r.ok&&r.skip).length,stop:a.filter(r=>!r.ok).length,skipped:a.reduce((s,r)=>s+r.skip,0)}}
 function spb(arm,op,belt){const a=D.filter(r=>r.arm===arm&&r.op===op&&(!belt||r.belt===belt)&&r.n&&r.sec&&r.sec<7000);return a.reduce((s,r)=>s+r.sec/r.n,0)/Math.max(1,a.length)}
-const CT={'7':{t:'t7',name:'七轴',sub:'上限最高，通用性最强',pts:['装车 22 组中 21 组零跳位','卸货 22/22 完成','代价：定制臂，成本与维护']},
-          '6':{t:'t6',name:'六轴',sub:'最便宜，但覆盖面窄',pts:['卸货 7 组提前停机','装车 9 组有跳位（共 44 个，几乎都在右侧输送带）','适合：窄车厢 + 车尾输送带']},
-          '6L':{t:'t6l',name:'六轴+升降',sub:'成熟臂 + 直线轴，性价比最高',pts:['卸货 22/22 完成','车尾装车最快（12.4 s/箱）','代价：先升降后动臂的时序、立柱刚度/成本，右侧输送带最外列仍有跳位']}};
+const CT={'7':{t:'t7',name:'七轴',sub:'覆盖面最广：同一位姿多种姿态可选',pts:['装车 22 组中 21 组零跳位','卸货 22/22 完成','业界车厢装卸机器人（Stretch、Mech）也选 ≥7 轴','代价：节拍不占优、现成高负载产品少、规划更复杂']},
+          '6':{t:'t6',name:'六轴',sub:'成熟、门槛低，但没有冗余',pts:['卸货 7 组提前停机','装车 9 组有跳位（共 44 个，几乎都在右侧输送带）','适合：窄车厢 + 车尾输送带']},
+          '6L':{t:'t6l',name:'六轴+升降',sub:'成熟臂 + 直线轴，优势很窄',pts:['卸货 22/22 完成','仅车尾输送带装车最快（12.4 s/箱）','代价：先升降后动臂的时序、立柱刚度/精度、车顶余量，且不增加侧向够得着']}};
 $('concl').innerHTML=ARMS.map(([k,n,c])=>{const L=stat(k,'L'),U=stat(k,'U'),sc=Math.floor(((L.clean+L.skip*.8+U.clean)/(L.tot+U.tot))*100);
  return`<div class="card"><span class="tag ${CT[k].t}">${n}</span><div class="big" style="color:${c}">${sc}<small style="font-size:15px;font-weight:500"> / 100</small></div><small>综合完成度（零跳位=1，有跳位=0.8，停机=0）</small><div class="bar"><i style="width:${sc}%;background:${c}"></i></div><h3>${CT[k].sub}</h3><ul>${CT[k].pts.map(p=>`<li>${p}</li>`).join('')}</ul></div>`}).join('');
 $('done').innerHTML=ARMS.map(([k,n,c])=>{const L=stat(k,'L'),U=stat(k,'U');
