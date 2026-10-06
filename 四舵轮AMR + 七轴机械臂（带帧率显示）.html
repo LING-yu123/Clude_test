@@ -1359,7 +1359,7 @@ function useArm(k,quiet,lift){
   LIFT=lift;qL=qLc=qE=0;lw.st=0;applyLift();document.getElementById('liftR').style.display=lift?'':'none';document.getElementById('lftS').value=0;document.getElementById('lftV').textContent='0 cm';
   if(apS){apS=0;cmd=[0,0,0];apReturn=null}
   if(held.obj)releaseHeld();
-  ARMK=k;const six=k===6;FRMIN=six?15.5:16.5;   // 前吸装车的最小停靠距离：七轴 16.5（臂展大），六轴 15.5（再大会够不着）
+  ARMK=k;const six=k===6;FRMIN=15.5;   // 前吸装车的最小停靠距离（够不着时退回 FRLOW）：16.5 能再少一点擦车头，但 7 列宽车厢会丢箱位
   j2.position.y=six?Y2_6:Y2_7;j2.position.x=six?A1_6:0;j3.position.y=six?L6[0]:L1;j4.position.y=six?L6[1]:L2;j5.position.y=six?0:L3;j6.position.y=six?0:.35;j7.position.y=six?.5:.3;
   OFF.splice(0,7,...(six?[0,0,90,0,0,0,0]:[0,-90,90,60,0,30,0]));
   JN.splice(0,7,...(six?JN6:JN7).map(r=>r.slice()));
@@ -1575,7 +1575,7 @@ function planPick(){   // 依次规划：预抓取位 → 贴合位 → 抽出�
   return{q1:r.qs[0],q2:r.qs[1],q3:r.qs[2],mode:md};
 }
 let MIN_D=5.5;   // 抓取时臂座到箱面的最小距离（局部单位，×10 = cm）：车头前表面在臂座前 4.4，5.5 即车头与箱面至少留 11 cm；不再人为留大间距，车位由“能拾取且够得着的箱子最多”决定
-let FRMIN=16.5;const FRLOW=12.5;   // 装车前吸（最上层/中转）时臂座到货面的最小距离：地面中转位在槽位前 6，距离太小前臂会擦到车头；够不着时（高层、7 层车厢）退到 FRLOW
+let FRMIN=15.5;const FRLOW=12.5;   // 装车前吸（最上层/中转）时臂座到货面的最小距离：地面中转位在槽位前 6，距离太小前臂会擦到车头；够不着时（高层、7 层车厢）退到 FRLOW
 function findParking(cd,force,lo){   // 为排在最前面的箱子找一个机械臂够得着的车位：在前后、左右两个方向搜索，移动量最小者优先
   const xf=cd.c.x-2.925,ap0=apInfo,sp=pos.clone(),pp=robot.position.clone(),pr=robot.rotation.clone(),Dcur=xf-(pos.x+1.6);
   const top=force==='top',Ds=[...new Set((top?[Dcur,9,10,11,12,8,13,7,6,5.5,14,15]:[Dcur,15,14,16,13,17]).map(d=>Math.round(d*2)/2))].filter(d=>top?(d>=Math.max(5.5,MIN_D)&&d<=16):(d>=Math.max(LOADM&&(cd.l>=TL()||force==="front")?(lo||cd.frLow?FRLOW:FRMIN):12,MIN_D)&&d<=18)),cand=[];
