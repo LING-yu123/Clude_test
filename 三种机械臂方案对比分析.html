@@ -37,6 +37,7 @@ h2 .n{display:inline-block;min-width:28px;color:var(--sub);font-weight:500}
 .g3{grid-template-columns:repeat(3,1fr)}
 .g2{grid-template-columns:repeat(2,1fr)}
 @media(max-width:860px){.g3,.g2{grid-template-columns:1fr}}
+@media(max-width:600px){nav{flex-wrap:nowrap!important;overflow-x:auto;white-space:nowrap}nav a{flex:none}}
 .tag{display:inline-block;font-size:12px;padding:2px 9px;border-radius:99px;color:#fff;font-weight:600}
 .t7{background:var(--c7)}.t6{background:var(--c6)}.t6l{background:var(--c6l)}
 .concl{display:grid;gap:14px;grid-template-columns:repeat(3,1fr)}
@@ -132,9 +133,9 @@ footer{margin-top:60px;color:var(--sub);font-size:12.5px;border-top:1px solid va
   <button id="pauseBtn">暂停</button>
 </div>
 <div class="panels">
-  <div class="pn"><h4><span class="tag t7">七轴</span>冗余臂</h4><canvas id="cv7" width="620" height="520"></canvas><div class="st" id="st7"></div></div>
-  <div class="pn"><h4><span class="tag t6">六轴</span>FANUC M-20iD/35</h4><canvas id="cv6" width="620" height="520"></canvas><div class="st" id="st6"></div></div>
-  <div class="pn"><h4><span class="tag t6l">六轴 + 升降</span>底座 0–60 cm</h4><canvas id="cv6l" width="620" height="520"></canvas><div class="st" id="st6l"></div></div>
+  <div class="pn"><h4><span class="tag t7">七轴</span>冗余臂</h4><canvas id="cv7" role="img" aria-label="七轴机械臂侧视动画" width="620" height="520"></canvas><div class="st" id="st7"></div></div>
+  <div class="pn"><h4><span class="tag t6">六轴</span>FANUC M-20iD/35</h4><canvas id="cv6" role="img" aria-label="六轴机械臂侧视动画" width="620" height="520"></canvas><div class="st" id="st6"></div></div>
+  <div class="pn"><h4><span class="tag t6l">六轴 + 升降</span>底座 0–60 cm</h4><canvas id="cv6l" role="img" aria-label="六轴加底座升降机械臂侧视动画" width="620" height="520"></canvas><div class="st" id="st6l"></div></div>
 </div>
 </section>
 
@@ -142,9 +143,9 @@ footer{margin-top:60px;color:var(--sub);font-size:12.5px;border-top:1px solid va
 <h2><span class="n">2</span>可达性地图：哪一层、多远能够到</h2>
 <p class="lead">横轴是臂座到货面的距离，纵轴是层数（下 → 上），随上面的“车厢高度”实时重算。绿色 = 够得着；黄色数字 = 需要把底座升到该高度（cm）；灰色 = 够不着。这里只画<b>顶吸</b>（最上层本来就是前吸）。第 5 层（最上层的下一层）在 2.7 m 高的车里顶吸三种臂都够不着，仿真里会自动改前吸（上面动图里就是这样）。它只看侧视平面，不含左右方向，所以<b>宽车厢的最外列</b>（第 4 节）比这里更难。</p>
 <div class="maps">
-  <div class="pn"><h4><span class="tag t7">七轴</span></h4><canvas id="mp7" width="480" height="300"></canvas></div>
-  <div class="pn"><h4><span class="tag t6">六轴</span></h4><canvas id="mp6" width="480" height="300"></canvas></div>
-  <div class="pn"><h4><span class="tag t6l">六轴 + 升降</span></h4><canvas id="mp6l" width="480" height="300"></canvas></div>
+  <div class="pn"><h4><span class="tag t7">七轴</span></h4><canvas id="mp7" role="img" aria-label="七轴可达性地图" width="480" height="300"></canvas></div>
+  <div class="pn"><h4><span class="tag t6">六轴</span></h4><canvas id="mp6" role="img" aria-label="六轴可达性地图" width="480" height="300"></canvas></div>
+  <div class="pn"><h4><span class="tag t6l">六轴 + 升降</span></h4><canvas id="mp6l" role="img" aria-label="六轴加升降可达性地图" width="480" height="300"></canvas></div>
 </div>
 <div class="legend"><span style="--c:var(--ok)">够得着</span><span style="--c:var(--warn)">需升降（数字 = cm）</span><span style="--c:var(--line)">够不着</span></div>
 <p class="note" id="mapNote"></p>
@@ -162,7 +163,7 @@ footer{margin-top:60px;color:var(--sub);font-size:12.5px;border-top:1px solid va
   <label>冗余角 φ <input id="rPhi" type="range" min="-175" max="175" step="5" value="-20"><b id="rPhiV">-20°</b></label>
 </div>
 <div class="grid g2" style="align-items:start">
-  <div class="pn"><canvas id="cvR" width="900" height="560"></canvas></div>
+  <div class="pn"><canvas id="cvR" role="img" aria-label="七轴冗余构型图" width="900" height="560"></canvas></div>
   <div class="card" id="redTxt"></div>
 </div>
 <p class="note">细线 = 该位姿下所有可行的七轴构型（末端完全不动，只有肘部和前臂在变），颜色表示该构型离车顶 / 货垛的最小距离（绿 = 宽松、红 = 紧贴）；粗线 = 当前展示的构型；红点 = 肘部轨迹。点“余量最大的构型”可看到余量最大的那一个——这是冗余度的用处之一：同一个吸盘位姿，可以挑一个离障碍最远的姿态（仿真里的规划器实际是在无碰撞的前提下，选与上一个航点最接近的构型，保证动作连续）。仿真里的规划器会在这一族构型里选一个<b>与上一个航点最接近</b>、<b>离关节极限最远</b>、<b>不碰货垛/侧壁/车顶</b>的。六轴给定末端位姿后只有肘上/肘下两种，没有挑选余地。</p>
@@ -173,7 +174,7 @@ footer{margin-top:60px;color:var(--sub);font-size:12.5px;border-top:1px solid va
   <span>目标箱：</span><select id="jBox"><option value="14">第 3 层 · 顶吸</option><option value="28">第 5 层 · 顶吸（够不着时改前吸）</option><option value="35">第 6 层 · 前吸（需中转）</option></select>
   <button id="jPlay" class="on">播放</button><label><input type="checkbox" id="jHead" checked> 显示吸盘朝向（J7−J1，虚线）</label>
 </div>
-<div class="card"><canvas id="cvJ" width="1100" height="380" style="width:100%;height:auto;display:block"></canvas>
+<div class="card"><canvas id="cvJ" role="img" aria-label="关节角随时间变化曲线" width="1100" height="380" style="width:100%;height:auto;display:block"></canvas>
 <div id="jTab" style="display:grid;grid-template-columns:repeat(9,1fr);gap:6px;margin-top:10px;font-size:13px"></div>
 <div class="legend" id="jLeg"></div></div>
 <p class="note">横轴是时间（仿真秒），纵轴是各关节角（度）；底部色带是自动装车状态机的阶段。<b>虚线 = 吸盘板的世界朝向变化（J7−J1）</b>：在“搬运入车”段它几乎是一条水平线——J1 转了将近 180°，J7 同步反向补偿，箱子在空中始终保持长边沿车厢长度方向，不会横过来碰侧壁；只有取箱、放入时才主动改变朝向。三个箱子分别是中层顶吸、高层，以及最上层前吸（要先放地面中转再换前吸，所以最长）。</p>
@@ -237,7 +238,7 @@ footer{margin-top:60px;color:var(--sub);font-size:12.5px;border-top:1px solid va
     </ul>
     <ul class="cons">
       <li>没有冗余：末端位姿给定，臂的构型基本唯一，碰壁/碰顶就只能“放弃该箱位”。</li>
-      <li>肩部在 1.24 m 高（比七轴高 0.37 m），对上层有利，但近处下层需要大幅折叠；输送带在右侧、内宽 2.9 m 时机器人被挤向左壁，臂展 1.83 m <b>够不到最右侧一列</b>。</li>
+      <li>肩部在 1.28 m 高（比七轴高 0.37 m），对上层有利，但近处下层需要大幅折叠；输送带在右侧、内宽 2.9 m 时机器人被挤向左壁，臂展 1.83 m <b>够不到最右侧一列</b>。</li>
       <li>实测：右侧输送带 + 7 列车厢，卸货在卸完最外一面的一部分后就停机（只卸了 35–36 箱 / 168）。</li>
     </ul></div>
   <div class="card"><h3 style="margin-top:0"><span class="tag t6l">六轴 + 升降</span> 用一个直线轴补回大部分差距</h3>
@@ -449,7 +450,7 @@ function draw(p,fr,plan){
     const tp=pts[pts.length-1],wp=pts[pts.length-2];c.strokeStyle=ink;c.lineWidth=.7*sc;c.beginPath();c.moveTo(Xp(wp[0]),Y(wp[1]));c.lineTo(Xp(tp[0]),Y(tp[1]));c.stroke();
     const d=fr.dir;c.lineWidth=.45*sc;c.beginPath();c.moveTo(Xp(tp[0]-d[1]*1.8),Y(tp[1]+d[0]*1.8));c.lineTo(Xp(tp[0]+d[1]*1.8),Y(tp[1]-d[0]*1.8));c.stroke();
     c.fillStyle=css('--card');c.strokeStyle=ink;c.lineWidth=2;pts.slice(0,-1).forEach(q=>{c.beginPath();c.arc(Xp(q[0]),Y(q[1]),.55*sc,0,7);c.fill();c.stroke()});
-    if(fr.held){const bxw=BOXW*sc,bxh=(CF.hc-.1)*sc,cx=tp[0]+d[0]*(d[0]?BOXW/2:0),cy=tp[1]+d[1]*(d[1]?-(CF.hc-.1)/2:0);
+    if(fr.held){const bxw=BOXW*sc,bxh=(CF.hc-.1)*sc;
       // 前吸：箱子在吸盘前方；顶吸：箱子在吸盘下方
       const bx=d[0]?tp[0]+BOXW/2:tp[0],by=d[0]?tp[1]:tp[1]-(CF.hc-.1)/2;
       c.fillStyle=stack;c.strokeStyle=css('--ink');c.lineWidth=1;c.fillRect(Xp(bx)-bxw/2,Y(by)-bxh/2,bxw,bxh);c.strokeRect(Xp(bx)-bxw/2,Y(by)-bxh/2,bxw,bxh)}
@@ -512,7 +513,7 @@ function rBuild(){
   const l=+rLay.value,D=+$('rD').value,ts=slotTargets(l,D,CF,false);let best=null;
   for(const t of ts){const s7=allSol(A7,0,t.hit,t.dir,CF.roof);if(s7.length){best={t,s7};break}}
   if(!best){const t=slotTargets(l,D,CF,true).slice(-1)[0],s7=allSol(A7,0,t.hit,t.dir,CF.roof);best={t,s7}}
-  let s6=allSol(A6,0,best.t.hit,best.t.dir,CF.roof);if(!s6.length&&best.t.mode==='top'){}
+  let s6=allSol(A6,0,best.t.hit,best.t.dir,CF.roof);
   rGhost={...best,s6,l,D};
   const ups=best.s7.filter(s=>s.up);rGhost.ups=ups.sort((a,b)=>a.phi-b.phi)}
 function rDraw(dt){
@@ -528,7 +529,7 @@ function rDraw(dt){
   const ghost=(s,a,w,colr)=>{c.strokeStyle=colr;c.globalAlpha=a;c.lineWidth=w;c.lineCap='round';c.lineJoin='round';c.beginPath();s.pts.slice(0,-1).forEach((q,i)=>i?c.lineTo(Xf(q[0]),Yf(q[1])):c.moveTo(Xf(q[0]),Yf(q[1])));c.stroke();c.globalAlpha=1};
   const clr=s=>{let m=1e9,sg=1e9;const P=s.pts;for(let k=0;k<P.length-1;k++)for(let u=0;u<=1;u+=.25){const x=P[k][0]+(P[k+1][0]-P[k][0])*u,y=P[k][1]+(P[k+1][1]-P[k][1])*u;m=Math.min(m,CF.roof-y);if(y<g.l*CF.hc+.2)sg=Math.min(sg,(xf-.3)-x)}return Math.min(m,sg)};
   g.s7.forEach(s=>{s.cl=clr(s)});
-  const cmax=Math.max(...g.s7.map(s=>s.cl),1),cmin=Math.min(...g.s7.map(s=>s.cl),0);
+  const cmax=Math.max(...g.s7.map(s=>s.cl),1);
   g.s7.forEach(s=>{const k=Math.max(0,Math.min(1,(s.cl-0)/Math.max(.1,cmax)));const hue=130*k;ghost(s,s.up?.5:.18,2,`hsl(${hue},70%,45%)`)});
   g.bestUp=g.ups.reduce((a,b)=>(!a||b.cl>a.cl)?b:a,null);
   // 肘部轨迹
