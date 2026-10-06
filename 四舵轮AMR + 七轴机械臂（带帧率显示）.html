@@ -1494,7 +1494,7 @@ function planCarryTop(q0,P){   // 顶吸携带：先抬起，再沿 dir 方向�
 }
 function carryFront(q0,P){   // 前吸携带：抽出 → 边转边收（半径收到 Rm）→ 沿 dir 方向一次转向车尾 → 落到输送线。P={dir:±1 转向, Rm:回转半径, yc:携带高度}
   const E=ENV[envK],S=shoulderPos(new THREE.Vector3());
-  const xr=apInfo.xf-6-SLIDE_T,dz0=apInfo.c.z-S.z,psi0=Math.atan2(-dz0,xr-S.x),R0=Math.hypot(xr-S.x,dz0);   // 抽出位吸盘面 xf-6，吸盘板后撤 SLIDE_T 之后在 xr   // 抽出位相对肩部的极坐标（方位角 ψ0、半径 R0）
+  const zgF=zGr(apInfo.c.z),xr=apInfo.xf-6-SLIDE_T,dz0=zgF-S.z,psi0=Math.atan2(-dz0,xr-S.x),R0=Math.hypot(xr-S.x,dz0);   // 抽出位吸盘面 xf-6，吸盘板后撤 SLIDE_T 之后在 xr   // 抽出位相对肩部的极坐标（方位角 ψ0、半径 R0）
   const yc=P.yc,Rm=Math.min(P.Rm,R0),dir=P.dir,cy=apInfo.c.y;   // 转角：从 ψ0 到正后方（±π），J1 只朝一个方向转
   const bcf=BELTC(),cP=robot.localToWorld(new THREE.Vector3(bcf.px,BELT_TOP+E.hy+.3,bcf.pz));
   const fx=BSIDE?cP.x:cP.x+2.925,fz=BSIDE?cP.z-2.925:S.z-dir*LZ(),Rend=BSIDE?Math.max(1,fz-S.z):Math.max(1,S.x-fx),yEnd=cP.y,psiE=BSIDE?-Math.PI/2:dir*Math.PI;   // 落点：吸盘面位置（箱子靠机器人一侧的端面；右侧时吸盘轴朝右）
@@ -1504,7 +1504,7 @@ function carryFront(q0,P){   // 前吸携带：抽出 → 边转边收（半径�
     const ps=psi0+sweep*f,t=Math.max(0,(f-.7)/.3);
     const r=(Rm+(R0-Rm)*Math.max(0,1-f/.35))*(1-sm(t))+Rend*sm(t),y=(yc+(cy-yc)*Math.max(0,1-f/.2))*(1-sm(t))+yEnd*sm(t);
     return{tip:[S.x+r*Math.cos(ps),y,S.z-r*Math.sin(ps)],psi:ps-psi0*(1-Math.min(1,f/.35))}};   // 吸盘轴朝向：开头保持正对货面（+x）直线抽出，前 35% 内逐渐转成径向朝外——避免第一步手腕突然滚转 100°+
-  const wps=[{tip:[xr,cy,apInfo.c.z],psi:0}];
+  const wps=[{tip:[xr,cy,zgF],psi:0}];
   for(const f of[.08,.2,.35,.5,.65,.78,.88,.95])wps.push(at(f));
   wps.push({tip:[fx,yEnd,fz],psi:psiE});
   const path=[];let qp=q0,failed=false;
@@ -1556,12 +1556,13 @@ function pickAccept(){   // 返回 chainSolve 用的碰撞检查：预抓取位 
     return !cfgsBad(splineCfgs([qs[2]],qs[1],6),rel,stRed,hs,stSkip,false);
   };
 }
+const zGr=cz=>{const E=ENV[envK],zl=Math.max(0,E.W/2-2.9-.1);return Math.abs(cz)>zl?Math.sign(cz)*zl:cz};   // 前吸抓取时吸盘板长边（5.8）沿 z，比箱面（3.8）宽；边列时把吸盘板往车厢中间挪，使其不越过侧壁（箱面仍被完全覆盖）
 function planPick(){   // 依次规划：预抓取位 → 贴合位 → 抽出位；同一构型，任何一步够不着或会撞（货垛/侧壁/车顶/车体）就返回 null。apInfo.force：'top' 顶吸 / 'front' 前吸 / 空=按层（最上层前吸，其余顶吸）
   const cd=apInfo.cd||{},E=ENV[envK],S=shoulderPos(new THREE.Vector3());
   const md=apInfo.force||(cd.l<TL()?'top':'front');let tips,phi0,r=null,pc=6;
   if(md==='front'){
-    const t=dx=>[apInfo.xf+dx,apInfo.c.y,apInfo.c.z];setAxes(false);tips=[t(-6),t(-.25),t(-6)];
-    phi0=Math.atan2(-(apInfo.c.z-S.z),apInfo.xf-S.x)*R2D;
+    const zg=zGr(apInfo.c.z),t=dx=>[apInfo.xf+dx,apInfo.c.y,zg];setAxes(false);tips=[t(-6),t(-.25),t(-6)];
+    phi0=Math.atan2(-(zg-S.z),apInfo.xf-S.x)*R2D;
     r=chainSolve(tips,100,{ep:.3,ax:3,roll:8,accept:pickAccept()},ARMK===6?[phi0,60,-40,0,0,-10,0]:[phi0,100,-40,-60,0,-30,0]);
   }else{   // 顶吸：从箱子正上方下探，吸盘面压到箱顶；高层空间有限，依次减小抬升余量
     poseTop(0);const top=apInfo.c.y+E.hy,cx=apInfo.c.x,cz=apInfo.c.z;phi0=Math.atan2(-(cz-S.z),cx-S.x)*R2D;
@@ -1734,7 +1735,7 @@ function pickCfgs(pl,cr,forceTop){   // 输送线取放点的抓取位（吸盘�
 }
 function ldStation(cd){const E=ENV[envK];return{i:-1,sl:cd.sl+1,j:cd.j,l:0,c:new THREE.Vector3(cd.c.x-6,cd.c.y-cd.l*E.hc,cd.c.z)}}
 function stFront(st){   // 中转位前吸抓取：接近位（面前 2）→ 贴合位
-  const S=shoulderPos(new THREE.Vector3()),xfS=st.c.x-2.925,y=st.c.y,z=st.c.z,phi0=Math.atan2(-(z-S.z),xfS-S.x)*R2D;
+  const S=shoulderPos(new THREE.Vector3()),xfS=st.c.x-2.925,y=st.c.y,z=zGr(st.c.z),phi0=Math.atan2(-(z-S.z),xfS-S.x)*R2D;
   setAxes(false);RMIN_WC=1.5;
   const r=chainSolve([[xfS-2,y,z],[xfS-.25,y,z]],100,{ep:.3,ax:3,roll:8},ARMK===6?[phi0,60,-40,0,0,-10,0]:[phi0,100,-40,-60,0,-30,0]);
   RMIN_WC=3;return r?{q1:r.qs[0],q2:r.qs[1],xfS,y,z}:null;
@@ -1744,6 +1745,14 @@ function ldLift(F,cdR){   // 中转位 → 槽位前 6 的抬升路径（吸盘�
   poseYaw(0);RMIN_WC=1.5;
   for(const t of[.08,.2,.35,.5,.65,.8,.92,1]){const r=nearSolve([xS0+(xR0-xS0)*t,yS+(yR-yS)*Math.min(1,t*1.15),z],0,qp,0);if(!r){RMIN_WC=3;setAxes(false);return null}path.push(r.q);qp=r.q}
   RMIN_WC=3;setAxes(false);return path;
+}
+// 笛卡尔直线路径：吸盘位置沿直线、吸盘姿态沿球面插值，中间点逐个求逆解——避免两个姿态差别大时关节空间插值走出一条甩出去的弧线（边列时会越过侧壁）
+function cartPath(qa,qb,n){
+  const pose=q=>{fkPose(q,100);robot.updateMatrixWorld(true);const w=new THREE.Vector3();tip.getWorldPosition(w);const e=j7.matrixWorld.elements;const m=new THREE.Matrix4().makeBasis(new THREE.Vector3(e[0],e[1],e[2]).normalize(),new THREE.Vector3(e[4],e[5],e[6]).normalize(),new THREE.Vector3(e[8],e[9],e[10]).normalize());return{p:w,q:new THREE.Quaternion().setFromRotationMatrix(m)}};
+  const A=pose(qa),B=pose(qb),out=[],tq=new THREE.Quaternion(),mm=new THREE.Matrix4();let qp=qa;RMIN_WC=1.5;
+  for(let k=1;k<n;k++){const t=k/n;tq.slerpQuaternions(A.q,B.q,t);mm.makeRotationFromQuaternion(tq);const e=mm.elements;TX=[e[0],e[1],e[2]];TY=[e[4],e[5],e[6]];TZ=[e[8],e[9],e[10]];
+    const r=nearSolve([A.p.x+(B.p.x-A.p.x)*t,A.p.y+(B.p.y-A.p.y)*t,A.p.z+(B.p.z-A.p.z)*t],100,qp,0);if(!r){out.length=0;break}out.push(r.q);qp=r.q}
+  RMIN_WC=3;setAxes(false);return out;
 }
 function stationOK(cd){   // 该车位能否同时服务“中转位顶放 + 前吸”
   const st=ldStation(cd);apInfo={c:st.c,xf:st.c.x-2.925,cd:st,force:'top',tries:0};
@@ -1860,7 +1869,7 @@ function loadStep(dt){
     const lb=freeBoxes[freeBoxes.length-1];
     if((!lb||lb.state==='rest'||ldT>2)&&ldT>.3){
       const reg=ldInfo.reg;ldShiftReg(reg,qc[0]);qs=100;sls.value=100;
-      setVia([ldInfo.pl.q1,reg.F.q1,reg.F.q2]);ldS=14;say('前吸接近箱子…')}
+      setVia([ldInfo.pl.q1,...cartPath(ldInfo.pl.q1,reg.F.q1,6),reg.F.q1,reg.F.q2]);ldS=14;say('前吸接近箱子…')}
   }else if(ldS===14){
     if(conv()&&ldT>.1){SKEY_ZONES(1);ldS=15;say('前吸抓取…')}
   }else if(ldS===15){
