@@ -238,7 +238,8 @@ const L1=4.0,L2=3.0,L3=3.5,Y2_7=.6;   // 经扫参优化（20GP/20HQ 整面卸�
 const ASC=2;
 const AB=new THREE.Group();AB.position.set(1.6,7.5,0);AB.scale.setScalar(ASC);robot.add(AB);
 // —— 底座升降（六轴 + 升降方案）：机械臂底座沿竖直立柱升降 0~0.6 m；立柱为两节伸缩套筒 ——
-let LIFT=false,qL=0,qLc=0;const BLIFT_MAX=6,BLIFT_V=4;   // qL 目标 / qLc 当前升降高度（世界单位 = 10 cm）；速度 0.4 m/s
+let LIFT=false,qL=0,qLc=0,qE=0,LN=0;const BLIFT_MAX=6,BLIFT_V=2,LIFT_SETTLE=1.0;let LIFT_ERR=.08;   // qL 目标 / qLc 当前升降高度（世界单位 = 10 cm）；升降 0.2 m/s；qE = 本次升降的定位误差（±8 mm，升降精度不高，且与机械臂不联动）；到位后静置 LIFT_SETTLE 秒（衰减振动 + 测高）
+const liftTgt=()=>Math.max(0,qL+qE);
 const liftCol=new THREE.Group();liftCol.position.set(1.6,7.5,0);robot.add(liftCol);liftCol.visible=false;
 const liftOut=new THREE.Mesh(new THREE.BoxGeometry(3.4,1,3.4),new THREE.MeshStandardMaterial({color:0x3a424c,metalness:.5,roughness:.5})),liftIn=new THREE.Mesh(new THREE.BoxGeometry(2.9,1,2.9),new THREE.MeshStandardMaterial({color:0xaeb6c0,metalness:.6,roughness:.35}));
 liftCol.add(liftOut,liftIn);
@@ -1093,7 +1094,7 @@ function releaseHeld(){
 function resetCargo(){
   for(const k of VEH.map(v=>v.k)){const E=ENV[k];if(!E.im)continue;E.im.instanceMatrix.array.set(E.orig);E.im.instanceMatrix.needsUpdate=true;E.exist.fill(true);E.cyc.set(E.cartons.map(c=>c[1]));E.vy.fill(0);E.rebuild()}
   if(held.obj){dropBox(held.obj.mesh);held.obj=null}
-  freeBoxes.forEach(b=>dropBox(b.mesh));freeBoxes.length=0;LSKIP.clear();apS=0;apMsg='';apReturn=null;ldS=0;ldMsg='';ldRet=null;ldAtEnd=false;ldN=0;LOADM=false;
+  freeBoxes.forEach(b=>dropBox(b.mesh));freeBoxes.length=0;LSKIP.clear();lw.st=0;apS=0;apMsg='';apReturn=null;ldS=0;ldMsg='';ldRet=null;ldAtEnd=false;ldN=0;LOADM=false;
 }
 const M4=new THREE.Matrix4();
 function stackStep(dt){
@@ -1355,7 +1356,7 @@ let HITLOG=null;  // 调试：记录是哪个部件撞了哪类障碍
 function useArm(k,quiet,lift){
   lift=!!lift&&k===6;
   if(k===ARMK&&!quiet&&lift===LIFT)return;
-  LIFT=lift;qL=qLc=0;applyLift();document.getElementById('liftR').style.display=lift?'':'none';document.getElementById('lftS').value=0;document.getElementById('lftV').textContent='0 cm';
+  LIFT=lift;qL=qLc=qE=0;lw.st=0;applyLift();document.getElementById('liftR').style.display=lift?'':'none';document.getElementById('lftS').value=0;document.getElementById('lftV').textContent='0 cm';
   if(apS){apS=0;cmd=[0,0,0];apReturn=null}
   if(held.obj)releaseHeld();
   ARMK=k;const six=k===6;
@@ -1380,7 +1381,15 @@ document.getElementById('lftS').oninput=e=>setLift(+e.target.value/10);
 let LIFT_L0=3,LIFT_V0=4,LIFT_OV=null;const LIFT_TRY=[3,6,1.5];   // 默认不升（实测升高会压缩车顶间隙）；规划失败时依次尝试升到 30/60/15 cm（LIFT_OV 为本箱的强制升降量）
 const liftNext=cd=>{if(!LIFT)return false;const n=(cd.lt||0);if(n>=LIFT_TRY.length)return false;cd.lt=n+1;LIFT_OV=LIFT_TRY[n];return true};
 const liftFor=cd=>LIFT_OV!=null?LIFT_OV:LIFT&&cd.l>=LIFT_L0&&cd.l<TL()?LIFT_V0:0;   // 中间几层（顶吸、离地较高）按 LIFT_V0 升底座；最上层前吸受车顶限制，不升
-const liftWait=cd=>{if(cd.lt==null)LIFT_OV=null;if(!LIFT)return false;setLift(liftFor(cd));return Math.abs(qLc-qL)>.02};   // 需要升降时返回 true：暂停本步，等底座到位后再规划
+const lw={st:0,t:0};   // 升降时序：0 空闲 → 1 机械臂收拢到安全姿态 → 2 底座升降（臂静止） → 3 静置测高 → 完成后才重新规划、动臂
+const liftIdle=()=>!traj.active&&qc.every((v,i)=>Math.abs(v-qt[i])<1.5);
+const liftWait=(cd,dt)=>{if(cd.lt==null)LIFT_OV=null;if(!LIFT)return false;const want=liftFor(cd);
+  if(lw.st===0){if(Math.abs(want-qL)<.01&&Math.abs(qLc-liftTgt())<.02)return false;   // 高度不用变：直接规划
+    const q=PRE['收纳'].slice(0,7);q[0]=qc[0];qs=0;sls.value=0;setJ(q);apReturn=null;ldAtEnd=false;lw.st=1;lw.t=0;lw.want=want;return true}
+  if(lw.st===1){if(liftIdle()&&Math.abs(qsc-qs)<3){setLift(lw.want);qE=Math.sin(++LN*12.9898)*LIFT_ERR;lw.st=2;lw.t=0}return true}
+  if(lw.st===2){if(Math.abs(qLc-liftTgt())<.01){lw.st=3;lw.t=0}return true}
+  lw.t+=dt*SPD;if(lw.t>=LIFT_SETTLE){lw.st=0;qs=100;sls.value=100;return false}return true};   // 升降完成：吸盘板重新伸出（收拢时为 0）
+const liftMsg=()=>['','机械臂收拢到安全姿态（升降前）…',`底座升降到 ${Math.round(qL*10)} cm（臂静止）…`,'升降到位，静置测高…'][lw.st];   // 需要升降时返回 true：暂停本步，等底座到位后再规划
 function mkObb(){return{c:[0,0,0],a:[[1,0,0],[0,1,0],[0,0,1]],h:[0,0,0]}}
 function obbOfEntry(b,o,margin){   // 把 OCC 条目（部件局部盒）转成世界系有向盒
   const M=b.o.matrixWorld,e=M.elements,sc=M.getMaxScaleOnAxis();
@@ -1611,7 +1620,7 @@ function autoStep(dt){
     if(Math.abs(dx)<.08&&Math.abs(dz)<.08){cmd=[0,0,0];apS=3;say('规划抓取姿态…')}   // 到位精度 8 mm：规划时车位边缘有 2.5 cm 的余量检查，这里必须停准
     else{const f=v=>Math.sign(v)*Math.max(.15,Math.min(Math.min(2,SPD),Math.abs(v)/6*Math.min(2,SPD)));cmd=[Math.abs(dx)<.08?0:f(dx),Math.abs(dz)<.08?0:-f(dz),0]}   // 左移为正，故右移（z 增大）取负
   }else if(apS===3){
-    {const c0=apInfo.cands[apInfo.ci];if(c0&&liftWait(c0)){apMsg='底座升降到 '+Math.round(qL*10)+' cm…';return}}
+    {const c0=apInfo.cands[apInfo.ci];if(c0&&liftWait(c0,dt)){apMsg=liftMsg();return}}
     let pl=null;
     if(apInfo.tries===0&&!apInfo.picked){   // 底盘尽量不动：同一面同一层里先找不用挪车就能拾取的箱子，都够不着才去挪车
       const c0=apInfo.cands[apInfo.ci];let pick=apInfo.ci;
@@ -1801,7 +1810,7 @@ function loadStep(dt){
     if(Math.abs(dx)<.08&&Math.abs(dz)<.08){cmd=[0,0,0];ldS=3;say('规划…')}
     else{const f=v=>Math.sign(v)*Math.max(.15,Math.min(Math.min(2,SPD),Math.abs(v)/6*Math.min(2,SPD)));cmd=[Math.abs(dx)<.08?0:f(dx),Math.abs(dz)<.08?0:-f(dz),0]}
   }else if(ldS===3){
-    const cd=ldInfo.cd;if(liftWait(cd)){ldMsg='底座升降到 '+Math.round(qL*10)+' cm…';return}
+    const cd=ldInfo.cd;if(liftWait(cd,dt)){ldMsg=liftMsg();return}
     let r=ldTry(cd,ldInfo.force);
     if(!r){
       let pk=findParking(cd,ldInfo.force);
@@ -2048,7 +2057,7 @@ setEnv('gp');setChassis('B');
     fx=fx<1e9?fx-2.925:ENV[envK].L;                          // 最外一排货物的外表面，或无货时的后壁
     pos.x=Math.min(pos.x,fx-.3-ex);
   }
-  if(LIFT&&Math.abs(qLc-qL)>1e-4){qLc+=Math.sign(qL-qLc)*Math.min(Math.abs(qL-qLc),BLIFT_V*dt*Math.min(SPD,2));applyLift()}
+  if(LIFT&&Math.abs(qLc-liftTgt())>1e-4){qLc+=Math.sign(liftTgt()-qLc)*Math.min(Math.abs(liftTgt()-qLc),BLIFT_V*dt*Math.min(SPD,2));applyLift()}
   updatePose(dt);
   pos.y=zy;robot.position.copy(pos);robot.rotation.order='YZX';robot.rotation.set(zr,yaw,zp);
 
