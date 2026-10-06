@@ -89,6 +89,11 @@ h2 .n{display:inline-block;min-width:28px;color:var(--sub);font-weight:500}
 .pros li::marker{color:var(--ok)}.cons li::marker{color:var(--bad)}
 .rec td:first-child{white-space:nowrap;font-weight:600}
 .callout{border-left:4px solid var(--c6l);background:var(--card);border-radius:0 12px 12px 0;padding:12px 16px;margin:14px 0;border-top:1px solid var(--line);border-right:1px solid var(--line);border-bottom:1px solid var(--line)}
+nav{position:sticky;top:0;z-index:5;display:flex;gap:4px;flex-wrap:wrap;padding:8px 0;margin:0 -4px;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+nav a{color:var(--sub);text-decoration:none;font-size:13px;padding:3px 10px;border-radius:99px}nav a:hover{background:var(--card);color:var(--ink)}
+.gl{margin-top:14px;max-width:860px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:8px 14px;font-size:13.5px}.gl summary{cursor:pointer;color:var(--sub)}.gl dt{font-weight:600;margin-top:8px}.gl dd{margin:2px 0 0;color:var(--sub)}
+section{scroll-margin-top:52px}
+@media print{nav,.ctl{display:none}.pn canvas{break-inside:avoid}}
 footer{margin-top:60px;color:var(--sub);font-size:12.5px;border-top:1px solid var(--line);padding-top:14px}
 @media(prefers-reduced-motion:reduce){.bset div{transition:none}}
 </style>
@@ -99,15 +104,22 @@ footer{margin-top:60px;color:var(--sub);font-size:12.5px;border-top:1px solid va
   <div class="eyebrow">四舵轮 AMR 车厢装卸仿真 · 机械臂方案评估</div>
   <h1>七轴、六轴、六轴 + 底座升降：哪一种更适合烟草车厢装卸？</h1>
   <p>基于本仓库仿真器的实测结果：11 种车厢（含内宽 2.9 m、内高 2.7–2.9 m 的烟草厢货/半挂）× 3 种机械臂 × 车尾/右侧两种输送带位置 × 装车/卸货，共 132 组、累计约 2 万箱次。下面的动图是用真实杆长做的侧视运动学示意，帮助理解<em>为什么</em>会出现这些结果。</p>
-</header>
+<details class="gl"><summary>名词说明（第一次看建议点开）</summary><dl>
+<dt>顶吸 / 前吸</dt><dd>顶吸：吸盘从箱子正上方下压吸住；前吸：吸盘水平推向箱子的正面吸住。最上层顶上没空间，只能前吸。</dd>
+<dt>冗余（七轴）</dt><dd>末端位姿（吸盘的位置和朝向）固定时，机械臂还有一个自由度可以调整肘部姿态；六轴没有这个自由度。</dd>
+<dt>底座升降</dt><dd>机械臂底座沿立柱竖直升降。它和机械臂是两套控制，升降精度不高，必须先升降、再动臂。</dd>
+<dt>跳位 / 停机</dt><dd>装车时某个箱位机械臂够不着，就跳过它继续装其余位置（跳位）；卸货时够不着就整体停下（停机）。</dd>
+<dt>仿真秒</dt><dd>仿真器内部时间，不含真实现场的加减速、建压、定位和安全等待，只适合横向比较。</dd>
+</dl></details></header>
+<nav id="nav" aria-label="章节"><a href="#s0">结论</a><a href="#s1">动图</a><a href="#s2">可达性</a><a href="#s3">七轴动作</a><a href="#s4">实测数据</a><a href="#s6">分析</a><a href="#s7">选型</a><a href="#s8">方法</a></nav>
 
-<section>
+<section id="s0">
 <h2><span class="n">0</span>结论先行</h2>
 <div class="concl" id="concl"></div>
 <div class="callout"><b>一句话选型：</b>追求最高可用度、不在意定制成本 → <b>七轴</b>；想用成熟工业臂（FANUC M-20iD/35）又要覆盖 2.9 m 宽、6–7 层的车厢 → <b>六轴 + 底座升降</b>；<b>纯六轴</b>只适合内宽 ≤ 2.7 m、输送带在车尾的车厢，遇到宽车厢或右侧输送带会明显够不着。</div>
 </section>
 
-<section>
+<section id="s1">
 <h2><span class="n">1</span>动图：同一个循环，三种臂怎么够到不同层</h2>
 <p class="lead">侧视图，按真实尺寸绘制（1 格 = 10 cm）。机械臂从“搬运姿态”出发，把箱子送进当前层的空位：最上层用前吸（吸盘水平推入），其余层用顶吸（吸盘从上方下压），与仿真里的策略一致。够不着时红色标出，臂会伸到极限。</p>
 <div class="ctl">
@@ -126,7 +138,7 @@ footer{margin-top:60px;color:var(--sub);font-size:12.5px;border-top:1px solid va
 </div>
 </section>
 
-<section>
+<section id="s2">
 <h2><span class="n">2</span>可达性地图：哪一层、多远能够到</h2>
 <p class="lead">横轴是臂座到货面的距离，纵轴是层数（下 → 上），随上面的“车厢高度”实时重算。绿色 = 够得着；黄色数字 = 需要把底座升到该高度（cm）；灰色 = 够不着。这里只画<b>顶吸</b>（最上层本来就是前吸）。第 5 层（最上层的下一层）在 2.7 m 高的车里顶吸三种臂都够不着，仿真里会自动改前吸（上面动图里就是这样）。它只看侧视平面，不含左右方向，所以<b>宽车厢的最外列</b>（第 4 节）比这里更难。</p>
 <div class="maps">
@@ -138,7 +150,7 @@ footer{margin-top:60px;color:var(--sub);font-size:12.5px;border-top:1px solid va
 <p class="note" id="mapNote"></p>
 </section>
 
-<section>
+<section id="s3">
 <h2><span class="n">3</span>七轴动作拆解：冗余自由度到底在干什么</h2>
 <p class="lead">前面看的是“够不够得着”，这一节看<b>怎么动</b>。七轴比六轴多一个关节，末端位姿固定时，肘部/前臂还能“摆”——这就是冗余。下面先用示意图把这件事讲清楚，再用仿真里记录的真实关节轨迹，看七轴的动作到底长什么样、代价是什么。</p>
 
@@ -146,25 +158,25 @@ footer{margin-top:60px;color:var(--sub);font-size:12.5px;border-top:1px solid va
 <div class="ctl">
   <label>目标层 <select id="rLay"></select></label>
   <label>臂座到货面距离 <input id="rD" type="range" min="6" max="20" step="0.5" value="11"><b id="rDV">1.10 m</b></label>
-  <button id="rAuto" class="on">自动摆动肘部</button>
+  <button id="rAuto" class="on">自动摆动肘部</button><button id="rBest">余量最大的构型</button>
   <label>冗余角 φ <input id="rPhi" type="range" min="-175" max="175" step="5" value="-20"><b id="rPhiV">-20°</b></label>
 </div>
 <div class="grid g2" style="align-items:start">
   <div class="pn"><canvas id="cvR" width="900" height="560"></canvas></div>
   <div class="card" id="redTxt"></div>
 </div>
-<p class="note">灰色细线 = 该位姿下所有可行的七轴构型（末端完全不动，只有肘部和前臂在变）；粗线 = 当前展示的构型；红点 = 肘部轨迹。仿真里的规划器会在这一族构型里选一个<b>与上一个航点最接近</b>、<b>离关节极限最远</b>、<b>不碰货垛/侧壁/车顶</b>的。六轴给定末端位姿后只有肘上/肘下两种，没有挑选余地。</p>
+<p class="note">细线 = 该位姿下所有可行的七轴构型（末端完全不动，只有肘部和前臂在变），颜色表示该构型离车顶 / 货垛的最小距离（绿 = 宽松、红 = 紧贴）；粗线 = 当前展示的构型；红点 = 肘部轨迹。点“余量最大的构型”可看到余量最大的那一个——这是冗余度的用处之一：同一个吸盘位姿，可以挑一个离障碍最远的姿态（仿真里的规划器实际是在无碰撞的前提下，选与上一个航点最接近的构型，保证动作连续）。仿真里的规划器会在这一族构型里选一个<b>与上一个航点最接近</b>、<b>离关节极限最远</b>、<b>不碰货垛/侧壁/车顶</b>的。六轴给定末端位姿后只有肘上/肘下两种，没有挑选余地。</p>
 
 <h3 style="margin:26px 0 6px;font-size:17px">3.2 真实仿真里的关节轨迹（20HQ · 车尾输送带 · 装车）</h3>
 <div class="ctl">
   <span>机械臂：</span><span id="jArm"></span>
   <span>目标箱：</span><select id="jBox"><option value="14">第 3 层 · 顶吸</option><option value="28">第 5 层 · 顶吸（够不着时改前吸）</option><option value="35">第 6 层 · 前吸（需中转）</option></select>
-  <button id="jPlay" class="on">播放</button>
+  <button id="jPlay" class="on">播放</button><label><input type="checkbox" id="jHead" checked> 显示吸盘朝向（J7−J1，虚线）</label>
 </div>
 <div class="card"><canvas id="cvJ" width="1100" height="380" style="width:100%;height:auto;display:block"></canvas>
-<div id="jTab" style="display:grid;grid-template-columns:repeat(8,1fr);gap:6px;margin-top:10px;font-size:13px"></div>
+<div id="jTab" style="display:grid;grid-template-columns:repeat(9,1fr);gap:6px;margin-top:10px;font-size:13px"></div>
 <div class="legend" id="jLeg"></div></div>
-<p class="note">横轴是时间（仿真秒），纵轴是各关节角（度）；底部色带是自动装车状态机的阶段。三个箱子分别是中层顶吸、高层，以及最上层前吸（要先放地面中转再换前吸，所以最长）。</p>
+<p class="note">横轴是时间（仿真秒），纵轴是各关节角（度）；底部色带是自动装车状态机的阶段。<b>虚线 = 吸盘板的世界朝向变化（J7−J1）</b>：在“搬运入车”段它几乎是一条水平线——J1 转了将近 180°，J7 同步反向补偿，箱子在空中始终保持长边沿车厢长度方向，不会横过来碰侧壁；只有取箱、放入时才主动改变朝向。三个箱子分别是中层顶吸、高层，以及最上层前吸（要先放地面中转再换前吸，所以最长）。</p>
 
 <h3 style="margin:26px 0 6px;font-size:17px">3.3 一箱的代价：关节行程与时间构成</h3>
 <div class="grid g2">
@@ -189,7 +201,7 @@ footer{margin-top:60px;color:var(--sub);font-size:12.5px;border-top:1px solid va
 <p class="note" id="seqNote"></p></div>
 </section>
 
-<section>
+<section id="s4">
 <h2><span class="n">4</span>实测数据：132 组仿真</h2>
 <p class="lead">每组都是“整车从满到空 / 从空到满”的完整自动循环。右侧输送带 = 输送带在机器人右侧、箱子横放；车尾 = 输送带在机器人正后方。</p>
 
@@ -205,7 +217,7 @@ footer{margin-top:60px;color:var(--sub);font-size:12.5px;border-top:1px solid va
 <div class="legend" style="margin-top:10px"><span style="--c:var(--ok)">✓ 全部完成</span><span style="--c:var(--warn)">数字 = 装车时被跳过的箱位</span><span style="--c:var(--bad)">数字 = 卸货中途停机时已卸箱数</span></div></div>
 </section>
 
-<section>
+<section id="s6">
 <h2><span class="n">6</span>分析：为什么会这样</h2>
 <div class="grid g2">
   <div class="card"><h3 style="margin-top:0"><span class="tag t7">七轴</span> 冗余自由度换来的鲁棒性</h3>
@@ -250,7 +262,7 @@ footer{margin-top:60px;color:var(--sub);font-size:12.5px;border-top:1px solid va
 </div>
 </section>
 
-<section>
+<section id="s7">
 <h2><span class="n">7</span>结论与选型建议</h2>
 <div class="card scroll"><table class="tbl rec">
 <thead><tr><th>场景</th><th>推荐</th><th>理由</th></tr></thead>
@@ -273,7 +285,7 @@ footer{margin-top:60px;color:var(--sub);font-size:12.5px;border-top:1px solid va
 </ul>
 </section>
 
-<section>
+<section id="s8">
 <h2><span class="n">8</span>分析方法与过程</h2>
 <div class="card">
 <ol style="margin:0;padding-left:20px">
@@ -493,6 +505,7 @@ fillRLay();$('hSel').addEventListener('change',()=>{fillRLay();rGhost=null});
 let rGhost=null,rAuto=true,rT=0,rSel=null;
 $('rAuto').onclick=()=>{rAuto=!rAuto;$('rAuto').classList.toggle('on',rAuto)};
 $('rPhi').oninput=()=>{rAuto=false;$('rAuto').classList.remove('on');$('rPhiV').textContent=$('rPhi').value+'°';rSel=+$('rPhi').value};
+$('rBest').onclick=()=>{if(!rGhost||!rGhost.bestUp)return;rAuto=false;$('rAuto').classList.remove('on');rSel=rGhost.bestUp.phi;$('rPhi').value=rSel;$('rPhiV').textContent=rSel+'°'};
 $('rD').oninput=()=>{$('rDV').textContent=(+$('rD').value/10).toFixed(2)+' m';rGhost=null};
 rLay.onchange=()=>{rGhost=null};
 function rBuild(){
@@ -513,7 +526,11 @@ function rDraw(dt){
   c.fillStyle=ink;[-4,4].forEach(x=>{c.beginPath();c.arc(Xf(x),Yf(1.6),1.6*sc,0,7);c.fill()});
   c.fillStyle=deck;c.fillRect(Xf(A7.sx-1.7),Yf(A7.sy),3.4*sc,(A7.sy-DECK)*sc);
   const ghost=(s,a,w,colr)=>{c.strokeStyle=colr;c.globalAlpha=a;c.lineWidth=w;c.lineCap='round';c.lineJoin='round';c.beginPath();s.pts.slice(0,-1).forEach((q,i)=>i?c.lineTo(Xf(q[0]),Yf(q[1])):c.moveTo(Xf(q[0]),Yf(q[1])));c.stroke();c.globalAlpha=1};
-  g.s7.forEach(s=>ghost(s,s.up?.22:.1,2,sub));
+  const clr=s=>{let m=1e9,sg=1e9;const P=s.pts;for(let k=0;k<P.length-1;k++)for(let u=0;u<=1;u+=.25){const x=P[k][0]+(P[k+1][0]-P[k][0])*u,y=P[k][1]+(P[k+1][1]-P[k][1])*u;m=Math.min(m,CF.roof-y);if(y<g.l*CF.hc+.2)sg=Math.min(sg,(xf-.3)-x)}return Math.min(m,sg)};
+  g.s7.forEach(s=>{s.cl=clr(s)});
+  const cmax=Math.max(...g.s7.map(s=>s.cl),1),cmin=Math.min(...g.s7.map(s=>s.cl),0);
+  g.s7.forEach(s=>{const k=Math.max(0,Math.min(1,(s.cl-0)/Math.max(.1,cmax)));const hue=130*k;ghost(s,s.up?.5:.18,2,`hsl(${hue},70%,45%)`)});
+  g.bestUp=g.ups.reduce((a,b)=>(!a||b.cl>a.cl)?b:a,null);
   // 肘部轨迹
   c.fillStyle=bad;g.ups.forEach(s=>{c.beginPath();c.arc(Xf(s.pts[1][0]),Yf(s.pts[1][1]),3,0,7);c.fill()});
   // 当前构型
@@ -525,7 +542,7 @@ function rDraw(dt){
   c.fillStyle=sub;c.font='20px system-ui';c.fillText(`${CF.H/10} m 高 · 第 ${g.l+1} 层 · 距货面 ${(g.D/10).toFixed(2)} m · ${g.t.mode==='front'?'前吸':'顶吸'}`,12,28);
   const n7=g.s7.length,n6=g.s6.length,ups=g.ups.map(s=>s.phi),r=ups.length?[Math.min(...ups),Math.max(...ups)]:null;
   $('redTxt').innerHTML=`<b>同一个吸盘位姿下的可行构型</b><div style="display:flex;gap:18px;margin:10px 0"><div><div style="font-size:34px;font-weight:700;color:var(--c7);line-height:1">${n7}</div><small style="color:var(--sub)">七轴</small></div><div><div style="font-size:34px;font-weight:700;color:var(--c6);line-height:1">${n6}</div><small style="color:var(--sub)">六轴（肘上/肘下）</small></div></div>`+
-  (n7?`<p style="margin:6px 0">七轴的前臂方向角 φ 可在 <b>${r?r[0]+'° ~ '+r[1]+'°':'—'}</b> 之间取值（肘上构型 ${g.ups.length} 个），肘部沿红点轨迹摆动，吸盘一动不动。</p><p style="margin:6px 0;color:var(--sub);font-size:13px">这个冗余度被用来：① 绕开货垛/侧壁/车顶；② 避开关节极限和肩部奇异；③ 让相邻两个航点的关节角连续，不出现突然翻转。</p>`:`<p style="margin:6px 0;color:var(--bad)"><b>该位姿七轴也够不着。</b>换一个距离或层数试试。</p>`)+
+  (n7?`<p style="margin:6px 0">最大余量构型：φ=<b>${g.bestUp?g.bestUp.phi+'°':'—'}</b>，离车顶/货垛最近 <b>${g.bestUp?(g.bestUp.cl*10).toFixed(0):'—'} cm</b>（线条颜色 = 余量，绿 = 宽松，红 = 紧贴）。</p><p style="margin:6px 0">七轴的前臂方向角 φ 可在 <b>${r?r[0]+'° ~ '+r[1]+'°':'—'}</b> 之间取值（肘上构型 ${g.ups.length} 个），肘部沿红点轨迹摆动，吸盘一动不动。</p><p style="margin:6px 0;color:var(--sub);font-size:13px">这个冗余度被用来：① 绕开货垛/侧壁/车顶；② 避开关节极限和肩部奇异；③ 让相邻两个航点的关节角连续，不出现突然翻转。</p>`:`<p style="margin:6px 0;color:var(--bad)"><b>该位姿七轴也够不着。</b>换一个距离或层数试试。</p>`)+
   (n6?`<p style="margin:6px 0;color:var(--sub);font-size:13px">六轴只有 ${n6} 个解——一旦这个解撞壁/过极限，这个箱位就只能放弃。</p>`:`<p style="margin:6px 0;color:var(--sub);font-size:13px">六轴在该位姿<b>无解</b>。</p>`)}
 /* 3.2 关节轨迹 */
 let jArm='7',jBox='14',jT=0,jPlay=true;
@@ -539,7 +556,7 @@ function jDraw(dt){
   const rec=TJ[jArm]&&TJ[jArm].rec[jBox];if(!rec)return;const pts=rec.pts,T=pts[pts.length-1][0],cv=$('cvJ'),c=cv.getContext('2d'),W=cv.width,H=cv.height,L=64,R=14,Tp=14,B=44,pw=W-L-R,ph=H-Tp-B;
   if(jPlay){jT+=dt*(+$('spSl').value);if(jT>T+1.2)jT=0}
   const sub=css('--sub'),line=css('--line'),ink=css('--ink');c.clearRect(0,0,W,H);
-  let lo=1e9,hi=-1e9;for(const p of pts)for(let i=0;i<7;i++){if(jArm!=='7'&&i===3)continue;lo=Math.min(lo,p[1+i]);hi=Math.max(hi,p[1+i])}const pad=(hi-lo)*.08||10;lo-=pad;hi+=pad;
+  const hd=p=>(p[7]-p[1])-(pts[0][7]-pts[0][1]),showH=$('jHead').checked;let lo=1e9,hi=-1e9;for(const p of pts){for(let i=0;i<7;i++){if(jArm!=='7'&&i===3)continue;lo=Math.min(lo,p[1+i]);hi=Math.max(hi,p[1+i])}if(showH){lo=Math.min(lo,hd(p));hi=Math.max(hi,hd(p))}}const pad=(hi-lo)*.08||10;lo-=pad;hi+=pad;
   const X=t=>L+t/T*pw,Yv=v=>Tp+(1-(v-lo)/(hi-lo))*ph;
   // 阶段色带
   for(let i=0;i<pts.length-1;i++){c.fillStyle=PH[phOf(pts[i][10])][2];c.globalAlpha=.9;c.fillRect(X(pts[i][0]),H-B+10,Math.max(1,X(pts[i+1][0])-X(pts[i][0])+.5),12);c.globalAlpha=1}
@@ -549,11 +566,13 @@ function jDraw(dt){
   c.textAlign='center';for(let t=0;t<=T;t+=Math.max(2,Math.round(T/8/2)*2)){c.fillText(t.toFixed(0)+' s',X(t),H-B+38)}
   // 曲线
   for(let i=0;i<7;i++){if(jArm!=='7'&&i===3)continue;c.strokeStyle=JC[i];c.lineWidth=2.4;c.beginPath();pts.forEach((p,k)=>k?c.lineTo(X(p[0]),Yv(p[1+i])):c.moveTo(X(p[0]),Yv(p[1+i])));c.stroke()}
+  if(showH){c.strokeStyle=ink;c.lineWidth=2.4;c.setLineDash([7,5]);c.beginPath();pts.forEach((p,k)=>k?c.lineTo(X(p[0]),Yv(hd(p))):c.moveTo(X(p[0]),Yv(hd(p))));c.stroke();c.setLineDash([])}
   // 游标
   const tt=Math.min(jT,T);c.strokeStyle=ink;c.lineWidth=1.5;c.setLineDash([5,4]);c.beginPath();c.moveTo(X(tt),Tp);c.lineTo(X(tt),H-B+24);c.stroke();c.setLineDash([]);
   let k=0;while(k<pts.length-1&&pts[k+1][0]<=tt)k++;const a=pts[k],b=pts[Math.min(k+1,pts.length-1)],f=b[0]>a[0]?(tt-a[0])/(b[0]-a[0]):0,val=i=>a[1+i]+(b[1+i]-a[1+i])*f;
   for(let i=0;i<7;i++){if(jArm!=='7'&&i===3)continue;c.fillStyle=JC[i];c.beginPath();c.arc(X(tt),Yv(val(i)),5,0,7);c.fill()}
-  $('jTab').innerHTML=JNm.map((n,i)=>(jArm!=='7'&&i===3)?`<div style="opacity:.35"><small style="color:var(--sub)">J4</small><div><b>锁定</b></div></div>`:`<div><small style="color:${JC[i]};font-weight:600">${n.slice(0,2)}</small><div><b>${val(i).toFixed(0)}°</b></div></div>`).join('')+`<div><small style="color:var(--sub)">阶段</small><div><b style="font-size:12px">${PH[phOf(a[10])][0]}</b></div></div>`}
+  const hv=hd(a)+(hd(b)-hd(a))*f;
+  $('jTab').innerHTML=JNm.map((n,i)=>(jArm!=='7'&&i===3)?`<div style="opacity:.35"><small style="color:var(--sub)">J4</small><div><b>锁定</b></div></div>`:`<div><small style="color:${JC[i]};font-weight:600">${n.slice(0,2)}</small><div><b>${val(i).toFixed(0)}°</b></div></div>`).join('')+`<div><small style="color:var(--sub)">吸盘朝向 Δ(J7−J1)</small><div><b>${hv.toFixed(0)}°</b></div></div>`+`<div><small style="color:var(--sub)">阶段</small><div><b style="font-size:12px">${PH[phOf(a[10])][0]}</b></div></div>`}
 /* 3.3 条形图 */
 function barsHTML(rows,max,unit){return rows.map(r=>`<div class="brow" style="grid-template-columns:70px 1fr"><div class="lab">${r[0]}</div><div class="bset">${r[1].map(x=>`<div data-w="${x.v/max*(r[2]||86)}" style="background:${x.c}"><span>${x.l}</span></div>`).join('')}</div></div>`).join('')}
 (function(){
