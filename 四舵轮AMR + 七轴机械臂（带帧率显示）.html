@@ -1359,7 +1359,7 @@ function useArm(k,quiet,lift){
   LIFT=lift;qL=qLc=qE=0;lw.st=0;applyLift();document.getElementById('liftR').style.display=lift?'':'none';document.getElementById('lftS').value=0;document.getElementById('lftV').textContent='0 cm';
   if(apS){apS=0;cmd=[0,0,0];apReturn=null}
   if(held.obj)releaseHeld();
-  ARMK=k;const six=k===6;
+  ARMK=k;const six=k===6;FRMIN=six?15.5:16.5;   // 前吸装车的最小停靠距离：七轴 16.5（臂展大），六轴 15.5（再大会够不着）
   j2.position.y=six?Y2_6:Y2_7;j2.position.x=six?A1_6:0;j3.position.y=six?L6[0]:L1;j4.position.y=six?L6[1]:L2;j5.position.y=six?0:L3;j6.position.y=six?0:.35;j7.position.y=six?.5:.3;
   OFF.splice(0,7,...(six?[0,0,90,0,0,0,0]:[0,-90,90,60,0,30,0]));
   JN.splice(0,7,...(six?JN6:JN7).map(r=>r.slice()));
@@ -1378,7 +1378,7 @@ function useArm(k,quiet,lift){
 document.querySelectorAll('#armK button').forEach(b=>b.onclick=()=>useArm(parseInt(b.dataset.k),false,b.dataset.k==='6L'));
 function setLift(h){qL=Math.max(0,Math.min(BLIFT_MAX,h));document.getElementById('lftS').value=Math.round(qL*10);document.getElementById('lftV').textContent=Math.round(qL*10)+' cm'}
 document.getElementById('lftS').oninput=e=>setLift(+e.target.value/10);
-let LIFT_L0=3,LIFT_V0=4,LIFT_OV=null;const LIFT_TRY=[3,6,1.5];   // 默认不升（实测升高会压缩车顶间隙）；规划失败时依次尝试升到 30/60/15 cm（LIFT_OV 为本箱的强制升降量）
+let LIFT_L0=3,LIFT_V0=2,LIFT_OV=null;const LIFT_TRY=[3,6,1.5];   // 默认不升（实测升高会压缩车顶间隙）；规划失败时依次尝试升到 30/60/15 cm（LIFT_OV 为本箱的强制升降量）
 const liftNext=cd=>{if(!LIFT)return false;const n=(cd.lt||0);if(n>=LIFT_TRY.length)return false;cd.lt=n+1;LIFT_OV=LIFT_TRY[n];return true};
 const liftFor=cd=>LIFT_OV!=null?LIFT_OV:LIFT&&cd.l>=LIFT_L0&&cd.l<TL()?LIFT_V0:0;   // 中间几层（顶吸、离地较高）按 LIFT_V0 升底座；最上层前吸受车顶限制，不升
 const stowArm=()=>{const q=PRE['收纳'].slice(0,7);q[0]=qc[0];qs=0;sls.value=0;setJ(q);apReturn=null;ldAtEnd=false};   // 收拢到安全姿态（升降前、车体移动前用）
@@ -1575,9 +1575,10 @@ function planPick(){   // 依次规划：预抓取位 → 贴合位 → 抽出�
   return{q1:r.qs[0],q2:r.qs[1],q3:r.qs[2],mode:md};
 }
 let MIN_D=5.5;   // 抓取时臂座到箱面的最小距离（局部单位，×10 = cm）：车头前表面在臂座前 4.4，5.5 即车头与箱面至少留 11 cm；不再人为留大间距，车位由“能拾取且够得着的箱子最多”决定
-function findParking(cd,force){   // 为排在最前面的箱子找一个机械臂够得着的车位：在前后、左右两个方向搜索，移动量最小者优先
+let FRMIN=16.5;const FRLOW=12.5;   // 装车前吸（最上层/中转）时臂座到货面的最小距离：地面中转位在槽位前 6，距离太小前臂会擦到车头；够不着时（高层、7 层车厢）退到 FRLOW
+function findParking(cd,force,lo){   // 为排在最前面的箱子找一个机械臂够得着的车位：在前后、左右两个方向搜索，移动量最小者优先
   const xf=cd.c.x-2.925,ap0=apInfo,sp=pos.clone(),pp=robot.position.clone(),pr=robot.rotation.clone(),Dcur=xf-(pos.x+1.6);
-  const top=force==='top',Ds=[...new Set((top?[Dcur,9,10,11,12,8,13,7,6,5.5,14,15]:[Dcur,15,14,16,13,17]).map(d=>Math.round(d*2)/2))].filter(d=>top?(d>=Math.max(5.5,MIN_D)&&d<=16):(d>=Math.max(LOADM&&(cd.l>=TL()||force==='front')?12.5:12,MIN_D)&&d<=18)),cand=[];
+  const top=force==='top',Ds=[...new Set((top?[Dcur,9,10,11,12,8,13,7,6,5.5,14,15]:[Dcur,15,14,16,13,17]).map(d=>Math.round(d*2)/2))].filter(d=>top?(d>=Math.max(5.5,MIN_D)&&d<=16):(d>=Math.max(LOADM&&(cd.l>=TL()||force==="front")?(lo||cd.frLow?FRLOW:FRMIN):12,MIN_D)&&d<=18)),cand=[];
   for(const D of Ds)for(let z=zRange()[0];z<=zRange()[1]+.01;z+=.6)cand.push({D,z,cost:Math.abs(D-Dcur)+Math.abs(z-sp.z)*1.5});
   cand.sort((a,b)=>a.cost-b.cost);
   // 先各距离各试一遍“不横移 / 略朝目标横移”（很快覆盖所有前后距离），再按移动量从小到大补充搜索
@@ -1605,6 +1606,7 @@ function findParking(cd,force){   // 为排在最前面的箱子找一个机械�
       f.score=sc;if(sc>bestSc){bestSc=sc;found=f}}   // 严格大于：并列时保留排在前面（移动最少）的
   }
   pos.copy(sp);robot.position.copy(pp);robot.rotation.copy(pr);robot.updateMatrixWorld(true);apInfo=ap0;
+  if(!found&&!lo&&LOADM&&(cd.l>=TL()||force==='front')&&!cd.frLow){cd.frLow=true;return findParking(cd,force,true)}   // 优选距离找不到：退到较近距离（前臂可能略擦车头，但总比放弃这个箱位好）
   return found;
 }
 function autoStep(dt){
@@ -1762,7 +1764,7 @@ let LDF=null;   // 调试：前放规划在哪一步失败
 function ldTryReg(cd){
   apInfo={c:cd.c,xf:cd.c.x-2.925,cd,force:'front',tries:0};
   const dh=Math.hypot(apInfo.xf-(pos.x+1.6*Math.cos(yaw)),cd.c.z-(pos.z-1.6*Math.sin(yaw)));
-  if(!(dh>=12.5&&dh<=21))return(LDF='dh',null);
+  if(!(dh>=(cd.frLow?FRLOW:FRMIN)&&dh<=21))return(LDF='dh',null);
   const plR=planPick();if(!plR)return(LDF='plR',null);
   const crR=planCarryBest(plR,false);if(!crR||!crR.path)return(LDF='crR',null);
   const st=ldStation(cd);
