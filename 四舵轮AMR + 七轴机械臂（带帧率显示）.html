@@ -1347,8 +1347,8 @@ function nearSolve(tip,slide,qp,dirJ1){
 // 规划阶段用它筛掉会撞的构型和路径；箱子在本轨迹里与吸盘刚性连接。返回位掩码：1 货垛  2 侧壁  4 车顶  8 后壁/门框  16 车体
 const CH_CARGO=1,CH_WALL=2,CH_ROOF=4,CH_BACK=8,CH_DECK=16,HITN={1:'货垛',2:'侧壁',4:'车顶',8:'后壁/门框',16:'车体'};
 const ARMB_ALL=OCC.filter(b=>[j2,j3,j4,j5,j6,j7,slide,tray].includes(b.o));let ARMB=ARMB_ALL.filter(b=>!b.arm||b.arm===ARMK);const CHB=OCC.filter(b=>b.o===grpA||b.o===grpB||b.o===robot);
-const AM=.3,ROOF_UP=.2;   // 臂外扩安全余量 3 cm（1 单位 = 10 cm）；车顶障碍下沿上抬 2 cm（货面离车顶只有 5 cm 的缝）
-const AMH_CARGO=-.3,AMH_OTHER=.3;   // 吸着的箱子：对货垛（相邻列间只有 1 cm 缝，且逆解位置有 ≤3 cm 容差）内缩 3 cm；对侧壁/车顶/车体外扩 3 cm
+let AM=.3;const ROOF_UP=.2;   // 臂外扩安全余量 3 cm（1 单位 = 10 cm）；车顶障碍下沿上抬 2 cm（货面离车顶只有 5 cm 的缝）
+let AMH_CARGO=-.3,AMH_OTHER=.3;   // 吸着的箱子：对货垛（相邻列间只有 1 cm 缝，且逆解位置有 ≤3 cm 容差）内缩 3 cm；对侧壁/车顶/车体外扩 3 cm
 let AVOID=false;   // 规划时避障总开关（默认关：避障规划还在验证中，见提交说明）
 let CFFAIL=null;   // 调试：携带路径规划在第几个航点失败
 let HITLOG=null;  // 调试：记录是哪个部件撞了哪类障碍
@@ -1381,11 +1381,12 @@ document.getElementById('lftS').oninput=e=>setLift(+e.target.value/10);
 let LIFT_L0=3,LIFT_V0=4,LIFT_OV=null;const LIFT_TRY=[3,6,1.5];   // 默认不升（实测升高会压缩车顶间隙）；规划失败时依次尝试升到 30/60/15 cm（LIFT_OV 为本箱的强制升降量）
 const liftNext=cd=>{if(!LIFT)return false;const n=(cd.lt||0);if(n>=LIFT_TRY.length)return false;cd.lt=n+1;LIFT_OV=LIFT_TRY[n];return true};
 const liftFor=cd=>LIFT_OV!=null?LIFT_OV:LIFT&&cd.l>=LIFT_L0&&cd.l<TL()?LIFT_V0:0;   // 中间几层（顶吸、离地较高）按 LIFT_V0 升底座；最上层前吸受车顶限制，不升
+const stowArm=()=>{const q=PRE['收纳'].slice(0,7);q[0]=qc[0];qs=0;sls.value=0;setJ(q);apReturn=null;ldAtEnd=false};   // 收拢到安全姿态（升降前、车体移动前用）
 const lw={st:0,t:0};   // 升降时序：0 空闲 → 1 机械臂收拢到安全姿态 → 2 底座升降（臂静止） → 3 静置测高 → 完成后才重新规划、动臂
 const liftIdle=()=>!traj.active&&qc.every((v,i)=>Math.abs(v-qt[i])<1.5);
 const liftWait=(cd,dt)=>{if(cd.lt==null)LIFT_OV=null;if(!LIFT)return false;const want=liftFor(cd);
   if(lw.st===0){if(Math.abs(want-qL)<.01&&Math.abs(qLc-liftTgt())<.02)return false;   // 高度不用变：直接规划
-    const q=PRE['收纳'].slice(0,7);q[0]=qc[0];qs=0;sls.value=0;setJ(q);apReturn=null;ldAtEnd=false;lw.st=1;lw.t=0;lw.want=want;return true}
+    stowArm();lw.st=1;lw.t=0;lw.want=want;return true}
   if(lw.st===1){if(liftIdle()&&Math.abs(qsc-qs)<3){setLift(lw.want);qE=Math.sin(++LN*12.9898)*LIFT_ERR;lw.st=2;lw.t=0}return true}
   if(lw.st===2){if(Math.abs(qLc-liftTgt())<.01){lw.st=3;lw.t=0}return true}
   lw.t+=dt*SPD;if(lw.t>=LIFT_SETTLE){lw.st=0;qs=100;sls.value=100;return true}return true};   // 完成后多等一帧，让下一次调用重新核对目标高度（中途被打断时目标可能已变）   // 升降完成：吸盘板重新伸出（收拢时为 0）
@@ -1615,9 +1616,11 @@ function autoStep(dt){
     cmd=[0,0,0];demo=false;qs=100;sls.value=100;
     apInfo={cands,ci:0,di:0,mode:'stay',tries:0,force:null};apS=3;say('底盘不动，规划机械臂取箱…');
     autoStep(0);return;   // 规划（较耗时）放在手臂尚未动作时完成，避免动作中途卡顿
+  }else if(apS===12){   // 收拢到位后才开始移动车体
+    if(conv()&&apT>.1){const dx=apInfo.park.x-pos.x,dz=apInfo.park.z-pos.z;apS=2;say(`调整车位（前后 ${(dx*10).toFixed(0)} cm，左右 ${(dz*10).toFixed(0)} cm）…`)}
   }else if(apS===2){   // 仅当原地够不着时才移动底盘（前后 + 左右同时调整）
     const dx=apInfo.park.x-pos.x,dz=apInfo.park.z-pos.z;
-    if(Math.abs(dx)<.08&&Math.abs(dz)<.08){cmd=[0,0,0];apS=3;say('规划抓取姿态…')}   // 到位精度 8 mm：规划时车位边缘有 2.5 cm 的余量检查，这里必须停准
+    if(Math.abs(dx)<.08&&Math.abs(dz)<.08){cmd=[0,0,0];qs=100;sls.value=100;apS=3;say('规划抓取姿态…')}   // 到位精度 8 mm：规划时车位边缘有 2.5 cm 的余量检查，这里必须停准
     else{const f=v=>Math.sign(v)*Math.max(.15,Math.min(Math.min(2,SPD),Math.abs(v)/6*Math.min(2,SPD)));cmd=[Math.abs(dx)<.08?0:f(dx),Math.abs(dz)<.08?0:-f(dz),0]}   // 左移为正，故右移（z 增大）取负
   }else if(apS===3){
     {const c0=apInfo.cands[apInfo.ci];if(c0&&liftWait(c0,dt)){apMsg=liftMsg();return}}
@@ -1639,7 +1642,7 @@ function autoStep(dt){
     if(!pl){
       let pk=findParking(cd,apInfo.force);
       if(!pk&&apInfo.force==='top'){pk=findParking(cd,'front');if(pk){apInfo.force='front';apInfo.parkMsg='顶吸够不着，改前吸'}}
-      if(pk&&apInfo.tries<2){if(apReturn){setVia(apReturn);apReturn=null}apInfo.tries++;apInfo.park=pk;apS=2;say(`调整车位（前后 ${((pk.x-pos.x)*10).toFixed(0)} cm，左右 ${((pk.z-pos.z)*10).toFixed(0)} cm）…`);return}
+      if(pk&&apInfo.tries<2){stowArm();apInfo.tries++;apInfo.park=pk;apS=12;say('机械臂收拢后再移动车体…');return}   // 车体移动前先把臂收拢（真机不会带着伸出的臂行驶）
       const nx=apInfo.cands[apInfo.ci+1];
       if(nx&&nx.sl===apInfo.cands[0].sl&&apInfo.ci<12){apInfo.ci++;apInfo.tries=0;apInfo.force=null;apInfo.picked=false;say('该箱够不着，先取本面本层的下一个…');return}
       {const c1=apInfo.cands[apInfo.ci];if(liftNext(c1)){apInfo.tries=0;apInfo.force=null;apInfo.picked=false;return}}   // 升降方案：换个底座高度再试
@@ -1805,6 +1808,8 @@ function loadStep(dt){
     if(Math.abs(yaw)>.15){fail('请先让车头朝向车厢内部');return}
     const cd=nextSlot(E);if(!cd){ldS=0;ldMsg=`装车完成，共 ${E.exist.filter(v=>v).length} 箱`+(LSKIP.size?`（${LSKIP.size} 个箱位机械臂够不着，已跳过）`:'');return}
     cmd=[0,0,0];demo=false;ldInfo={cd,tries:0,fails:0,force:cd.l<TL()?'top':'front'};ldS=3;say(`第 ${cd.sl+1} 面（由里向外）· 自下而上第 ${cd.l+1} 层 · 第 ${cd.j+1} 列：规划…`);loadStep(0);return;
+  }else if(ldS===16){
+    if(conv()&&ldT>.1){const dx=ldInfo.park.x-pos.x,dz=ldInfo.park.z-pos.z;ldS=2;say(`调整车位（前后 ${(dx*10).toFixed(0)} cm，左右 ${(dz*10).toFixed(0)} cm）…`)}
   }else if(ldS===2){   // 底盘到位（前后 + 左右）
     const dx=ldInfo.park.x-pos.x,dz=ldInfo.park.z-pos.z;
     if(Math.abs(dx)<.08&&Math.abs(dz)<.08){cmd=[0,0,0];ldS=3;say('规划…')}
@@ -1815,7 +1820,7 @@ function loadStep(dt){
     if(!r){
       let pk=findParking(cd,ldInfo.force);
       if(!pk&&ldInfo.force==='top'){pk=findParking(cd,'front');if(pk)ldInfo.force='front'}
-      if(pk&&ldInfo.tries<3){ldInfo.tries++;ldInfo.park=pk;ldS=2;say(`调整车位（前后 ${((pk.x-pos.x)*10).toFixed(0)} cm，左右 ${((pk.z-pos.z)*10).toFixed(0)} cm）…`);return}
+      if(pk&&ldInfo.tries<3){stowArm();ldInfo.tries++;ldInfo.park=pk;ldS=16;say('机械臂收拢后再移动车体…');return}
       if(liftNext(cd)){ldInfo.tries=0;ldInfo.force=cd.l<TL()?'top':'front';return}   // 升降方案：挪车也不行，再换一个底座高度重试
       LSKIP.add(cd.i);ldInfo=null;LIFT_OV=null;ldS=1;ldMsg=`第 ${cd.sl+1} 面第 ${cd.l+1} 层第 ${cd.j+1} 列机械臂放不进去，跳过该箱位（共跳过 ${LSKIP.size} 个）`;ldT=0;return;   // 不整体停机：跳过这个够不着的箱位，继续装其余位置
     }
