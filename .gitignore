@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+*.stp
+*.step
+output/
+archive/
+*.bak
+MUJOCO_LOG.TXT

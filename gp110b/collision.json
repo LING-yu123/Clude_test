@@ -1,0 +1,152 @@
+[
+ {
+  "file": "col_gp_T_0_0.stl",
+  "link": 7,
+  "faces": 188
+ },
+ {
+  "file": "col_gp_T_1_0.stl",
+  "link": 7,
+  "faces": 508
+ },
+ {
+  "file": "col_gp_B_2_0.stl",
+  "link": 6,
+  "faces": 658
+ },
+ {
+  "file": "col_gp_B_2_1.stl",
+  "link": 6,
+  "faces": 672
+ },
+ {
+  "file": "col_gp_R_3_0.stl",
+  "link": 5,
+  "faces": 268
+ },
+ {
+  "file": "col_gp_R_3_1.stl",
+  "link": 5,
+  "faces": 388
+ },
+ {
+  "file": "col_gp_R_3_2.stl",
+  "link": 5,
+  "faces": 1034
+ },
+ {
+  "file": "col_gp_U_4_0.stl",
+  "link": 4,
+  "faces": 172
+ },
+ {
+  "file": "col_gp_U_4_1.stl",
+  "link": 4,
+  "faces": 152
+ },
+ {
+  "file": "col_gp_U_5_0.stl",
+  "link": 4,
+  "faces": 182
+ },
+ {
+  "file": "col_gp_U_5_1.stl",
+  "link": 4,
+  "faces": 234
+ },
+ {
+  "file": "col_gp_U_5_2.stl",
+  "link": 4,
+  "faces": 118
+ },
+ {
+  "file": "col_gp_U_5_3.stl",
+  "link": 4,
+  "faces": 54
+ },
+ {
+  "file": "col_gp_U_5_4.stl",
+  "link": 4,
+  "faces": 216
+ },
+ {
+  "file": "col_gp_L2_6_0.stl",
+  "link": 3,
+  "faces": 224
+ },
+ {
+  "file": "col_gp_L2_6_1.stl",
+  "link": 3,
+  "faces": 274
+ },
+ {
+  "file": "col_gp_L2_6_2.stl",
+  "link": 3,
+  "faces": 216
+ },
+ {
+  "file": "col_gp_L2_6_3.stl",
+  "link": 3,
+  "faces": 276
+ },
+ {
+  "file": "col_gp_L1_7_0.stl",
+  "link": 2,
+  "faces": 448
+ },
+ {
+  "file": "col_gp_L1_7_1.stl",
+  "link": 2,
+  "faces": 346
+ },
+ {
+  "file": "col_gp_L1_7_2.stl",
+  "link": 2,
+  "faces": 196
+ },
+ {
+  "file": "col_gp_L1_7_3.stl",
+  "link": 2,
+  "faces": 320
+ },
+ {
+  "file": "col_gp_L1_7_4.stl",
+  "link": 2,
+  "faces": 394
+ },
+ {
+  "file": "col_gp_S_8_0.stl",
+  "link": 1,
+  "faces": 108
+ },
+ {
+  "file": "col_gp_S_8_2.stl",
+  "link": 1,
+  "faces": 108
+ },
+ {
+  "file": "col_gp_S_9_0.stl",
+  "link": 1,
+  "faces": 242
+ },
+ {
+  "file": "col_gp_S_9_1.stl",
+  "link": 1,
+  "faces": 174
+ },
+ {
+  "file": "col_gp_S_9_2.stl",
+  "link": 1,
+  "faces": 178
+ },
+ {
+  "file": "col_gp_S_9_3.stl",
+  "link": 1,
+  "faces": 174
+ },
+ {
+  "file": "col_gp_S_9_4.stl",
+  "link": 1,
+  "faces": 164
+ }
+]
