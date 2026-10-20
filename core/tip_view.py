@@ -53,7 +53,10 @@ class TipDemo:
         mj = mujoco
         self.base = mj.mj_name2id(self.m, mj.mjtObj.mjOBJ_BODY, "base")
         self.pay = mj.mj_name2id(self.m, mj.mjtObj.mjOBJ_BODY, "payload")
-        self.pay_geom = mj.mj_name2id(self.m, mj.mjtObj.mjOBJ_GEOM, "payload_box")
+        self.pay_geoms = [mj.mj_name2id(self.m, mj.mjtObj.mjOBJ_GEOM, f"payload_box{j}") for j in range(3)]
+        self.pay_geom = self.pay_geoms[1]                 # 单箱（旧接口）放在中间那个位置
+        self.grip_act = [mj.mj_name2id(self.m, mj.mjtObj.mjOBJ_ACTUATOR, n) for n in ("a_gp", "a_gt")]
+        self.grip_qadr = [self.m.jnt_qposadr[self.m.actuator_trnid[a][0]] for a in self.grip_act]
         self.wb = [mj.mj_name2id(self.m, mj.mjtObj.mjOBJ_BODY, f"wheel_{n}") for n in WHEELS]
         self.arm_act = [mj.mj_name2id(self.m, mj.mjtObj.mjOBJ_ACTUATOR, f"a_j{i}") for i in range(1, 8)]
         self.arm_qadr = [self.m.jnt_qposadr[self.m.actuator_trnid[a][0]] for a in self.arm_act]
@@ -63,8 +66,9 @@ class TipDemo:
         self.wheel_dofs = [self.m.jnt_dofadr[self.m.joint(f"j_{n}").id] for n in WHEELS]
         self.tilt_mocap = self.m.body_mocapid[mj.mj_name2id(self.m, mj.mjtObj.mjOBJ_BODY, "tilt")]
         self.scene_mocap = self.m.body_mocapid[mj.mj_name2id(self.m, mj.mjtObj.mjOBJ_BODY, "scene")]
-        self.wall_geom = {(c, l): mj.mj_name2id(self.m, mj.mjtObj.mjOBJ_GEOM, f"wb_{c}_{l}") for c in range(8) for l in range(8)}
-        self.bed_geom = mj.mj_name2id(self.m, mj.mjtObj.mjOBJ_GEOM, "bed_box")
+        self.wall_geom = {(c, l): mj.mj_name2id(self.m, mj.mjtObj.mjOBJ_GEOM, f"wb_{c}_{l}") for c in range(len(__import__('box_spec').COLS)) for l in range(__import__('box_spec').N_LAYERS)}
+        self.bed_geoms = [mj.mj_name2id(self.m, mj.mjtObj.mjOBJ_GEOM, n) for n in ("bed_box", "bed_box_1", "bed_box_2")]
+        self.bed_geom = self.bed_geoms[0]
         self.station = 0.0                                # 机器人在车厢里的横向位置 y [m]（用移动场景来等效）
         self.susp = susp == "on"
         self.fws = FourWheelSteer(self.m, self.d, self.r)   # 四舵轮运动学；停车时轮子抱闸（干摩擦）
@@ -105,12 +109,58 @@ class TipDemo:
     def arm_settled(self, tol=0.004):
         return bool(np.max(np.abs(self.q_tgt - self.q_cmd)) < tol and np.max(np.abs(getattr(self, "v_cmd", np.zeros(7)))) < 0.02)
 
+    def set_load(self, widths, top=False, yoff=0.0):
+        """吸着一组箱子（同层相邻，各箱宽度 widths，沿 ee y 排成一排）；widths=[] 表示空手。
+        前吸：箱子竖着贴吸盘板（深度沿 ee z）；顶吸：箱子挂在吸盘板下面（高度沿 ee z）。质量 = 箱数 x 单箱质量"""
+        import box_spec as BS
+        n = len(widths)
+        self.payload = BS.BOX_MASS * n
+        mass = max(self.payload, 0.01)
+        self.m.body_mass[self.pay] = mass
+        self.m.body_inertia[self.pay] = mass * (sum(widths) ** 2 / 12 + 0.02) if n else 0.01
+        if top:
+            self.m.body_ipos[self.pay] = [0.0, yoff, 0.222 + BS.BOX_H / 2]
+        else:
+            self.m.body_ipos[self.pay] = [0.0, yoff, 0.222 + BS.BOX_D / 2]
+        y = -sum(widths) / 2 + yoff
+        for j, g in enumerate(self.pay_geoms):
+            if j < n:
+                w = widths[j]
+                if top:
+                    self.m.geom_pos[g] = [0.0, y + w / 2, 0.222 + BS.BOX_H / 2]
+                    self.m.geom_size[g] = [BS.BOX_D / 2 - 0.002, w / 2 - 0.003, BS.BOX_H / 2 - 0.002]
+                else:
+                    self.m.geom_pos[g] = [0.0, y + w / 2, 0.222 + BS.BOX_D / 2]
+                    self.m.geom_size[g] = [BS.BOX_H / 2 - 0.002, w / 2 - 0.003, BS.BOX_D / 2 - 0.002]
+                y += w
+            self.m.geom_rgba[g][3] = 0.9 if j < n else 0.0
+        self._refresh_mass()
+
+    def set_grip(self, pi, rho):
+        """夹具滑轴目标：pi = 吸盘板伸出量 [m]，rho = 底托回缩量 [m]"""
+        self.grip_cmd = (float(pi), float(rho))
+        self.d.ctrl[self.grip_act[0]] = pi
+        self.d.ctrl[self.grip_act[1]] = -rho
+
+    def grip_state(self):
+        return (float(self.d.qpos[self.grip_qadr[0]]), -float(self.d.qpos[self.grip_qadr[1]]))
+
+    def _refresh_mass(self):
+        saved = (self.d.qpos.copy(), self.d.qvel.copy(), self.d.ctrl.copy(), self.d.mocap_quat.copy(), self.d.mocap_pos.copy())
+        mujoco.mj_setConst(self.m, self.d)
+        self.d.qpos[:], self.d.qvel[:], self.d.ctrl[:], self.d.mocap_quat[:], self.d.mocap_pos[:] = saved
+        mujoco.mj_forward(self.m, self.d)
+
     def set_payload(self, kg):
         self.payload = float(max(0.0, min(100.0, kg)))
         mass = max(self.payload, 0.01)
         self.m.body_mass[self.pay] = mass
         self.m.body_inertia[self.pay] = 0.4 * mass * 0.2 ** 2
-        self.m.geom_rgba[self.pay_geom][3] = 0.85 if self.payload > 0 else 0.0
+        self.m.body_ipos[self.pay] = [0.069, 0.0, 0.372]
+        for j, g in enumerate(self.pay_geoms):
+            if j == 1:
+                self.m.geom_pos[g] = [0.069, 0.0, 0.372]; self.m.geom_size[g] = [0.125, 0.2, 0.15]
+            self.m.geom_rgba[g][3] = 0.85 if (j == 1 and self.payload > 0) else 0.0
         # mj_setConst 会把 qpos 复位到 qpos0（车会瞬间回到平地姿态），所以先存后取
         saved = (self.d.qpos.copy(), self.d.qvel.copy(), self.d.ctrl.copy(), self.d.mocap_quat.copy(), self.d.mocap_pos.copy())
         mujoco.mj_setConst(self.m, self.d)
@@ -422,7 +472,10 @@ def interactive(args):
     state = {"joint": 0, "jog": 3.0, "auto": False, "reset": False, "cycle": False, "t": 0.0, "i": -1, "speed": 1}
     import os
     player = None
-    if os.path.exists("data/unload_plan2.json"):
+    if os.path.exists("data/unload_plan3.json"):                 # 成组 + 前吸/顶吸 + 连续运动 的新计划
+        from unload_player3 import UnloadPlayer3
+        player = UnloadPlayer3(demo, json.load(open("data/unload_plan3.json", encoding="utf-8")))
+    elif os.path.exists("data/unload_plan2.json"):
         player = UnloadPlayer2(demo, dict(json.load(open("data/unload_plan2.json", encoding="utf-8")),
                                           order=json.load(open("data/unload_plan2.json", encoding="utf-8"))["order"]))
     elif os.path.exists("archive/unload_result.json"):

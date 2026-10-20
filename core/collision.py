@@ -12,7 +12,7 @@
     pairs = col.check(q, station_y=0.0, holding=False, mode="free")   # [] 表示没有碰撞
     mode："free" 全部检测；"pick" 夹具允许贴着箱墙；"place" 负载允许压在辊床上
 """
-import json, math, os
+import json, math, os, sys
 import numpy as np
 import mujoco
 
@@ -21,8 +21,11 @@ MARGIN = 0.02          # 臂与环境保持的最小距离 [m]（接触检测提
 ARM_Z0 = 0.79          # 臂座高度（世界系）
 
 # 碰撞位：连杆 i 用 1<<i（i=1..7），夹具 G，负载 P
-G_BIT, P_BIT = 1 << 8, 1 << 9
-ALL_ARM = sum(1 << i for i in range(1, 8)) | G_BIT | P_BIT
+G_BIT, P_BIT, T_BIT = 1 << 8, 1 << 9, 1 << 10          # 吸盘板 / 负载箱子 / 底托
+GRIP_BITS = G_BIT | P_BIT | T_BIT
+ALL_ARM = sum(1 << i for i in range(1, 8)) | GRIP_BITS
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import box_spec as BS
 
 
 def _box(name, lo, hi, ct, ca, extra=""):
@@ -41,7 +44,7 @@ class Collider:
         col = json.load(open(os.path.join(HERE, "gp110b", "collision.json"), encoding="utf-8"))
         env = []
         # ---- 车体 ----
-        veh_ca = sum(1 << i for i in range(2, 8)) | G_BIT | P_BIT        # 除 J1 连杆外都要躲车体
+        veh_ca = sum(1 << i for i in range(2, 8)) | GRIP_BITS        # 除 J1 连杆外都要躲车体
         env.append(_box("veh_body", (-0.621, -0.514, 0.02), (0.599, 0.514, 0.70), 0, veh_ca))
         for sx in (-1, 1):
             for sy in (-1, 1):
@@ -50,15 +53,19 @@ class Collider:
         # ---- 理料机构（页面 xfer 层每个零件的包围盒）----
         self.bed_names = []
         for i, p in enumerate(parts):
-            if p["l"] != "xfer" or "示意箱" in p["n"]:
+            if p["l"] != "xfer" or "示意箱" in p["n"] or any(k in p["n"] for k in ("推板", "后挡板")):      # 原页面 3 工位的推板/挡板：多箱放置要改成平辊床，不参与碰撞
                 continue
             import a_model
             v, _ = a_model._arrays(p)
             lo, hi = v.min(0) / 1000, v.max(0) / 1000
+            if "快拆" not in p["n"]:                       # 理料机构整体后移（快拆接口留在车上）
+                lo = lo + np.array([BS.BED_SHIFT, 0, 0]); hi = hi + np.array([BS.BED_SHIFT, 0, 0])
             name = f"xf_{i}"
             if any(k in p["n"] for k in ("辊床", "护条", "支座", "承载块")):
                 self.bed_names.append(name)
             env.append(_box(name, lo, hi, 0, veh_ca))
+        env.append(_box("xf_wide", (-1.05 + BS.BED_SHIFT - 0.10, -BS.BED_HALF_W, 0.67), (-0.62, BS.BED_HALF_W, BS.BED_TOP), 0, veh_ca))      # 加宽到可放 3 箱的辊床
+        self.bed_names.append("xf_wide")
         for i, p in enumerate(parts):
             if p["l"] == "sensor" and "安装板" not in p["n"]:
                 import a_model
@@ -72,14 +79,14 @@ class Collider:
         scene.append(_box("c_roof", (-2.5, -1.51, 3.0), (3.0, 1.51, 3.01), 0, w))
         scene.append(_box("c_front", (3.0, -1.51, 0), (3.01, 1.51, 3.0), 0, w))
         scene.append(_box("c_back", (-2.51, -1.51, 0), (-2.5, 1.51, 3.0), 0, w))
-        edges = [-1.5, -1.2, -0.8, -0.4, 0.0, 0.4, 0.8, 1.2, 1.5]
+        edges = BS.COL_EDGES
         self.wall_names = {}
-        for c in range(8):
-            for l in range(8):
+        for c in range(BS.N_COLS):
+            for l in range(BS.N_LAYERS):
                 nm = f"wb_{c}_{l}"
                 self.wall_names[(c, l)] = nm
-                scene.append(_box(nm, (1.402, edges[c], 0.25 * l), (1.702, edges[c + 1], 0.25 * (l + 1)), 0, w))
-        scene.append(_box("wall_back", (1.702, -1.5, 0), (2.998, 1.5, 2.85), 0, w))
+                scene.append(_box(nm, (BS.WALL_FRONT, edges[c], BS.BOX_H * l), (BS.WALL_FRONT + BS.BOX_D, edges[c + 1], BS.BOX_H * (l + 1)), 0, w))
+        scene.append(_box("wall_back", (BS.WALL_FRONT + BS.BOX_D, -1.5, 0), (2.998, 1.5, 2.85), 0, w))
         scene.append("</body>")
         # ---- 臂 ----
         mast = ('<geom name="mast_pole" type="capsule" fromto="-0.26 -0.34 0.10 -0.26 -0.34 1.12" size="0.09" '
@@ -98,10 +105,12 @@ class Collider:
                 bodies += mast.replace('contype="0" conaffinity="0"', f'contype="{1 << 1}" conaffinity="0"') + "\n"
             if i == 7:                                        # 夹具 + 负载
                 gca = sum(1 << k for k in range(1, 6))
+                pw, pa = BS.PLATE_HALF_W, BS.PLATE_HALF_A
+                gmax = max(BS.BOX_D, BS.BOX_H) / 2
                 bodies += ('<body name="ee" pos="0.2 0 0" xyaxes="0 0 -1 0 1 0">\n'
-                           f'<geom name="g_plate" type="box" pos="0 0 0.196" size="0.15 0.29 0.026" contype="{G_BIT}" conaffinity="{gca}" margin="{MARGIN}"/>\n'
-                           f'<geom name="g_tray" type="box" pos="0.194 0 0.222" size="0.006 0.29 0.15" contype="{G_BIT}" conaffinity="{gca}" margin="{MARGIN}"/>\n'
-                           f'<geom name="g_box" type="box" pos="0.069 0 0.372" size="0.125 0.2 0.15" contype="{P_BIT}" conaffinity="{gca}" margin="{MARGIN}"/>\n</body>\n')
+                           f'<geom name="g_plate" type="box" pos="0 0 0.196" size="{pa} {pw} 0.026" contype="{G_BIT}" conaffinity="{gca}" margin="{MARGIN}"/>\n'
+                           f'<geom name="g_tray" type="box" pos="{BS.TRAY_X} 0 0.222" size="{BS.TRAY_T / 2} {pw} {BS.TRAY_HALF_L}" contype="{T_BIT}" conaffinity="{gca}" margin="{MARGIN}"/>\n'
+                           f'<geom name="g_box" type="box" pos="0 0 0.372" size="{gmax} {BS.BOX_W * BS.MAX_GROUP / 2} {gmax}" contype="{P_BIT}" conaffinity="{gca}" margin="{MARGIN}"/>\n</body>\n')
         bodies += "</body>" * close
         assets = "".join(f'<mesh name="{c["file"][:-4]}" file="{c["file"]}" scale="0.001 0.001 0.001"/>' for c in col)
         xml = f"""<mujoco><option gravity="0 0 0"/><asset>{assets}</asset><worldbody>
@@ -118,6 +127,7 @@ class Collider:
         self.g_bed = [g(n) for n in self.bed_names]
         self.g_box = g("g_box")
         self.g_plate, self.g_tray = g("g_plate"), g("g_tray")
+        self.tray_ct = int(self.m.geom_contype[self.g_tray])
         self.qadr = [self.m.jnt_qposadr[mujoco.mj_name2id(self.m, mujoco.mjtObj.mjOBJ_JOINT, f"J{i}")] for i in range(1, 8)]
         self.scene_body = mujoco.mj_name2id(self.m, mujoco.mjtObj.mjOBJ_BODY, "scene")
         self.mocap = self.m.body_mocapid[self.scene_body]
@@ -132,20 +142,34 @@ class Collider:
             if k in removed:
                 self.m.geom_conaffinity[gid] = 0
 
-    def check(self, q, station_y=0.0, holding=False, mode="free", removed=()):
+    def check(self, q, station_y=0.0, holding=False, mode="free", removed=(), grip=None):
+        """grip：夹具状态 dict(n, width=总宽, top=是否顶吸, pi=吸盘板伸出量, rho=底托回缩量)；None = 旧行为（单箱，空手时底托缩回 12 cm）"""
         m, d = self.m, self.d
+        if grip is None:
+            grip = dict(width=BS.BOX_W, top=False, pi=0.0, rho=0.0 if holding else BS.TRAY_RETRACT)
+        top, pi, rho = grip.get("top", False), grip.get("pi", 0.0), grip.get("rho", 0.0)
         self.m.geom_conaffinity[:] = self.ca0
         for k in removed:
             self.m.geom_conaffinity[self.wall_gid[k]] = 0
-        gmask = G_BIT | P_BIT
         if mode == "pick":                                   # 夹具/负载可以贴着箱墙
             for gid in self.g_wall:
-                self.m.geom_conaffinity[gid] &= ~gmask
-        if mode == "place":                                  # 负载可以压在辊床上
+                self.m.geom_conaffinity[gid] &= ~GRIP_BITS
+        if mode == "place":                                  # 负载和底托可以压在辊床上
             for gid in self.g_bed:
-                self.m.geom_conaffinity[gid] &= ~(P_BIT)
+                self.m.geom_conaffinity[gid] &= ~(P_BIT | T_BIT)
         self.m.geom_contype[self.g_box] = P_BIT if holding else 0
-        self.m.geom_pos[self.g_tray, 2] = 0.222 if holding else 0.102     # 吸着箱子时托板伸出托住箱底，空手时缩回 12 cm
+        self.m.geom_contype[self.g_tray] = 0 if top else self.tray_ct          # 顶吸没有底托
+        self.m.geom_pos[self.g_plate, 2] = 0.196 + pi
+        self.m.geom_size[self.g_plate] = [BS.PLATE_TOP_HALF if top else BS.PLATE_FRONT_HALF, BS.PLATE_HALF_W, 0.026]
+        self.m.geom_pos[self.g_tray] = [BS.TRAY_X, 0.0, BS.TRAY_Z_HOLD - rho]
+        hw = grip.get("width", BS.BOX_W) / 2
+        yo = grip.get("yoff", 0.0)                           # 这组箱子的中心相对吸盘板中心的横向偏移（ee y）
+        if top:
+            self.m.geom_pos[self.g_box] = [0.0, yo, 0.222 + BS.BOX_H / 2 + pi]
+            self.m.geom_size[self.g_box] = [BS.BOX_D / 2, hw, BS.BOX_H / 2]
+        else:
+            self.m.geom_pos[self.g_box] = [0.0, yo, 0.222 + BS.BOX_D / 2 + pi]
+            self.m.geom_size[self.g_box] = [BS.BOX_H / 2, hw, BS.BOX_D / 2]
         d.mocap_pos[self.mocap] = [0, -station_y, 0]
         for adr, v in zip(self.qadr, q):
             d.qpos[adr] = v

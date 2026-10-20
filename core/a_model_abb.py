@@ -73,11 +73,25 @@ def abb_visuals(L):
             mo = rob["mastO"]
             xml += f'<body name="mast" pos="{mo[0]/1000:.4f} {mo[1]/1000:.4f} {mo[2]/1000:.4f}" axisangle="0 0 1 180">\n{g_mr}\n</body>\n</body>\n'
         if i == 7:                                    # 法兰 + 夹具
-            xml += ('<body name="ee" pos="0.2 0 0" xyaxes="0 0 -1 0 1 0">\n'
-                    f'<body name="ee_slide" pos="0 0 0">\n{g_slide}\n</body>\n<body name="ee_tray" pos="0 0 0">\n{g_tray}\n</body>\n')
+            xml += '<body name="ee" pos="0.2 0 0" xyaxes="0 0 -1 0 1 0">\n<body name="ee_slide" pos="0 0 0">\n'
+            if live:                                       # 吸盘板沿 ee z（向前）滑动；箱子挂在吸盘板上跟着动
+                xml += ('<joint name="grip_p" type="slide" axis="0 0 1" range="0 0.32" damping="400" armature="2"/>\n'
+                        '<inertial pos="0 0 0.2" mass="1" diaginertia="0.02 0.02 0.02"/>\n')
+            xml += g_slide + "\n"
+            if live:                                       # 负载：最多 3 个箱子（同层相邻），运行时改位置/尺寸/质量
+                xml += '<body name="payload" pos="0 0 0">\n<inertial pos="0.069 0 0.372" mass="1" diaginertia="0.01 0.01 0.01"/>\n'
+                for jb in range(3):
+                    xml += (f'<geom name="payload_box{jb}" {GEOM} type="box" pos="0.069 {(jb - 1) * 0.4} 0.372" size="0.125 0.2 0.15" '
+                            f'rgba="0.80 0.64 0.42 0"/>\n')
+                xml += '</body>\n'
+            xml += '</body>\n<body name="ee_tray" pos="0 0 0">\n'
+            if live:                                       # 底托沿 ee z 滑动：0=托着箱子，负值=回缩
+                xml += ('<joint name="grip_t" type="slide" axis="0 0 1" range="-0.20 0.02" damping="400" armature="2"/>\n'
+                        '<inertial pos="0.194 0 0.222" mass="1" diaginertia="0.02 0.02 0.02"/>\n')
+            xml += g_tray + "\n</body>\n"
             if live:
-                xml += ('<body name="payload" pos="0.069 0 0.372">\n<inertial pos="0 0 0" mass="1" diaginertia="0.01 0.01 0.01"/>\n'
-                        f'<geom name="payload_box" {GEOM} type="box" size="0.125 0.2 0.15" rgba="0.80 0.64 0.42 0"/>\n</body>\n')
+                act.append('<position name="a_gp" joint="grip_p" kp="3e5" kv="6e3"/>')
+                act.append('<position name="a_gt" joint="grip_t" kp="3e5" kv="6e3"/>')
             xml += "</body>\n"
     xml += "</body>\n" * 8                           # 7 个关节体 + arm_base
     L["base_xml"].append(xml)

@@ -1,19 +1,27 @@
 # 重载移动卸货机器人 MuJoCo 仿真
 
-**设计优化结论见 [设计优化报告.md](设计优化报告.md)**(最佳底盘质量/轮距/轴距/轮径、电机选型数据、卸货动作优化)。
+四舵轮底盘(1000 kg) + 安川 GP110B 七轴臂(820 kg 含立柱、夹具) + 泰山(红将军)整件烟箱(长451×宽243×高568,17 kg/箱)。
+所有命令都在本目录运行(双击 .bat 即可;PowerShell 里要写 `.\xxx.bat`)。
 
-四舵轮底盘(1000 kg) + 安川 GP110B 七轴臂(820 kg 含立柱、夹具) + 烟箱(50 kg)。所有命令都在本目录运行(双击 .bat 即可)。
+**结论文档:[设计优化报告.md](设计优化报告.md)**(底盘质量/轮距/轴距/轮径、电机选型、成组卸货方案与验证数据)。
+
+## 卸货方案(当前)
+- 每层先取**中间一组**再取两边,一次最多同时抓 **3 箱**(同层相邻);顶层先取,逐层往下。
+- 上半部各层**前吸 + 底托**(吸盘板前伸贴箱、底托同步后退;吸合后吸盘板缩回、底托同步前伸托住箱底);下半部各层**顶吸**(吸盘在箱顶,没有底托)。夹具全程**不翻转**,底托始终在下面。
+- 放箱:J1 转到车尾,吸盘朝后(前吸:吸盘板前推、底托同步回缩,箱子留在辊床上;顶吸:放下后释放)。
+- 臂的路径在路点拐角处圆角过渡,再按速度/加速度限幅做时间参数化,**连续不停顿**;只有夹具动作、吸合/释放、车体横移时臂才停。
+- 理料机构要求:辊床宽 ≥1.1 m、整体后移约 0.65 m(中心 x≈-1.50),否则夹具朝后放 568 mm 高的箱子无解(详见报告)。
 
 ## 直接运行(根目录的 .bat)
 | 文件 | 作用 |
 |---|---|
-| `tip_view.bat` | **主程序**:MuJoCo 可视化。U=自动卸货,1-7+方向键=手动点动关节,J=点动步长,R=回预设姿态,`[ ]`=坡度,M=悬挂,`= -`=负载 |
-| `validate.bat` | 无界面动力学验证:`validate.bat 坡度 坡向 箱数 是否开车`,如 `validate.bat 0 0 8 1` |
-| `replan.bat` | 重新规划卸货动作(很慢,多进程),结果写入 `data/unload_plan2.json` |
-| `view_susp.bat` | 悬挂摆动单独演示 |
+| `tip_view.bat` | **主程序**:MuJoCo 可视化。U=自动成组卸货,1-7+方向键=手动点动关节,J=点动步长,R=回预设姿态,`[ ]`=坡度,`' ;`=坡向,M=悬挂,`= -`=负载 |
 | `view_menu.bat` | 菜单:选 1-8 分别看 卸货(平地/侧坡/上坡)、爬坡、最高速度、台阶、间隙 |
+| `validate.bat` | 无界面动力学验证成组卸货:`validate.bat 坡度 坡向 组数(0=全部) 是否开车 加速时间 速度比例`,如 `validate.bat 10 90 0 1` |
+| `replan.bat` | 重新规划卸货动作(很慢,6 进程并行,约 6 分钟)并平滑成连续路径,结果写入 `data/unload_plan3.json` |
 | `slope_view.bat` | 爬坡可视化:`slope_view.bat 10 0.3 on 50 0.6`(坡度, 车速, 悬挂, 负载, 摩擦);B=抱闸/行驶 |
-| `obstacle_view.bat` | 越障可视化:`obstacle_view.bat step 20 120 on 50 0.1`(台阶/间隙, mm, 单轮力矩, 悬挂, 负载, 车速;默认 0.1 m/s) |
+| `obstacle_view.bat` | 越障可视化:`obstacle_view.bat step 20 200 on 50 0.1`(台阶/间隙, mm, 单轮力矩, 悬挂, 负载, 车速, 摩擦) |
+| `view_susp.bat` | 悬挂摆动单独演示 |
 
 ## 目录
 | 目录 | 内容 |
@@ -21,36 +29,37 @@
 | `core/` | 核心代码(被其他脚本导入) |
 | `tools/` | 验证 / 分析 / 出图的独立脚本 |
 | `build/` | 一次性生成模型数据的脚本(STEP→网格、预设姿态),一般不用再跑 |
-| `data/` | 输入与规划结果:STEP 文件、`chassis_A_3d.html`、`unload_plan2.json`(卸货动作)、`abb_presets.json`、`place_cache.json` |
+| `data/` | 输入与规划结果:`chassis_A_3d.html`、`unload_plan3.json`(成组卸货计划)、`unload_plan3_raw.json`(平滑前的原始路点)、`abb_presets.json` 等 |
 | `gp110b/`, `meshes/` | 由 STEP 生成的连杆网格、质量占比(`links.json`)、碰撞凸包(`collision.json`) |
 | `output/` | 运行产生的图片、表格、日志 |
-| `archive/` | 旧版/不再使用的文件(旧优化结果、旧看板等) |
+| `archive/` | 旧版(单箱、前吸、50 kg)方案和旧脚本 |
 
-## core/ 各文件
+## core/ 主要文件
 | 文件 | 作用 |
 |---|---|
-| `chassis_sim.py` | **底盘与整机模型**:CONFIG 参数(质量、质心、轮距、轮胎刚度…)、生成 MJCF、悬挂、四舵轮、`cfg_live` |
-| `arm_abb.py` | GP110B 参数:关节链、限位、各轴速度、质量分配(含固定底座 BASE) |
-| `arm_kin.py` | 正/逆运动学、质心计算 |
-| `a_model.py`, `a_model_abb.py` | 机械臂/车体的外观与关节(MuJoCo 几何) |
-| `scene.py` | 车厢、箱墙、理料机构 |
-| `collision.py` | 真实外形碰撞检测(臂、夹具、箱子 vs 车厢/箱墙/车体) |
-| `plan_motion.py` | 无碰撞卸货动作规划(RRT-Connect/RRT*,多进程) |
-| `unload_plan.py` | 箱子取放顺序、工位、携带姿态 |
-| `unload_player.py` | 执行规划好的动作(最小冲击曲线,**速度/加速度在文件开头 `ACC_TIME`、`speed_scale`**) |
-| `steering.py` | 四舵轮运动学与控制 |
+| `box_spec.py` | **烟箱/夹具/箱墙/辊床参数**(改烟箱尺寸只改这里,然后 `replan.bat`) |
+| `chassis_sim.py` | 底盘与整机模型:CONFIG(质量、质心、轮距轴距、轮胎、电机…)、MJCF 生成、悬挂、四舵轮 |
+| `arm_abb.py` / `arm_kin.py` | GP110B 参数、运动学/IK(姿态误差已改成完整旋转矢量,修掉了 IK 会算出"夹具翻转 180°"假解的错误) |
+| `a_model.py` / `a_model_abb.py` | 机械臂/车体的 MuJoCo 模型(含吸盘板、底托两个滑轴、最多 3 箱负载) |
+| `collision.py` | 真实外形碰撞检测(臂、夹具、箱组 vs 车体/理料机构/箱墙/车厢);夹具状态可变(前吸/顶吸、吸盘板伸出量、底托回缩量、箱数) |
+| `plan_groups.py` | 成组取箱规划(每层先中间后两边、前吸/顶吸、笛卡尔直线拔出、放箱、并行、可取集合迭代) |
+| `smooth_plan.py` | 把路点折线圆角成稠密连续路径(逐拐角碰撞检测),写 `unload_plan3.json` |
+| `traj.py` | 时间参数化(速度/加速度限幅的 TOPP + 平滑) |
+| `unload_player3.py` | 成组卸货播放器(**加速时间/速度比例在文件开头 `ACC_TIME`、`SPEED_SCALE`**) |
+| `steering.py` | 四舵轮运动学与控制(抱闸=位置保持) |
 | `tip_view.py` | 可视化主程序与按键 |
-| `tip_analysis.py` | 倾覆解析计算(支承多边形 + 质心高度) |
-| `cycle_test.py` | 倾覆裕度计算等公用函数 |
+| `plan_motion.py`, `unload_player.py`, `unload_plan.py` | 旧版单箱规划/播放器(保留给碰撞检测的 RRT 等公用函数) |
 
 ## tools/
-- 设计研究:`design_study.py`(轴距/轮距/质心/配重→倾翻角) · `com_height_study.py`(质心高度、底盘质量) · `wheel_study.py`(轮径) · `traction_study.py`(质心/摩擦→台阶) · `gap_sweep.py`(间隙宽度) · `motor_requirements.py`(电机选型数据) · `cycle_opt.py`(卸货节拍) · `stability_map.py`(卸货全过程静态倾翻角)
-- 校核/验证:`capability_check.py`(RockyOne 指标:速度/爬坡/台阶/间隙) · `validate_plan.py`(卸货动力学验证) · `step_robust.py`(台阶稳健性) · `chassis_tune.py`
+- 成组卸货:`validate_plan3.py`(动力学验证) · `cycle_opt3.py`(节拍/稳定性扫描)
+- 设计研究:`design_study.py` · `com_height_study.py` · `wheel_study.py` · `traction_study.py` · `gap_sweep.py` · `motor_requirements.py` · `stability_map.py`(部分仍按旧单箱计划取姿态)
+- 校核:`capability_check.py`(RockyOne 指标:速度/爬坡/台阶/间隙) · `step_robust.py` · `chassis_tune.py`
 - 可视化:`slope_view.py` · `obstacle_view.py` · `view_sim.py` · `render.py`
-- 旧脚本在 `archive/old_tools/`(用旧臂数据,不再维护)
+- 旧脚本在 `archive/old_tools/`
 
 ## 已知
-- 越障(台阶/间隙)测试用了专门的接触设置:车轮胶囊代替圆柱(圆柱撞方块棱时接触法向不准)、金字塔摩擦锥、更硬的接触阻抗;结论:20 mm 台阶受摩擦限制,μ=0.6 时临界,μ≥0.9 且单轮力矩≥300 N·m 稳定通过;50 mm 间隙可过。
-- 脚本都要在本目录(工程根)下运行;生成的图/表默认写到 `output/`。
-- `design_check.py`、`torque_report.py`、`j2_shift_study.py`、`unload_opt.py` 还没按新的臂质量(含底座)更新。
-- 底盘已改:轴距 1.11 m、轮距 0.91 m(页面原值 x1.25)、底盘质心 x=-0.15、单轮力矩 200 N·m、后桥摆动阻尼 300;10° 坡上 8 个坡向卸货均不倾覆(`tools/stability_map.py` 静态最小倾翻角 15.8°)。
+- 烟箱装车方向是假设的(长沿车厢纵向、宽沿横向、高竖直);实测装车方向不同需改 `box_spec.py`。
+- 夹具外观网格还是原页面尺寸,与 568 mm 高的箱子不匹配(只影响画面,碰撞/动力学用的是 `box_spec.py` 的尺寸)。
+- 越障(台阶/间隙)测试用了专门的接触设置,结论只作量级参考。
+- 60 箱里 45 箱能取到;两侧靠墙的几列(上面几层)和底层最右边够不到,是臂与车厢侧壁的几何限制。
+- 底盘已改:轴距 1.11 m、轮距 1.02 m、质心 x=-0.15、单轮力矩 200 N·m、后桥摆动阻尼 300。

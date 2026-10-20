@@ -48,10 +48,23 @@ def fk(theta, all_links=False):
 
 
 def pose_err(T, p_t, R_t):
+    """位置误差 + 姿态误差（旋转矢量 = 轴 x 角，范数就是夹角）。
+    注意：以前用 Re 的反对称部分 sin(θ)·轴，θ=180° 时恒为 0，IK 会收敛到"夹具翻转 180°"的假解（托板朝上），已修正。"""
     e_p = p_t - T[:3, 3]
-    Rc = T[:3, :3]
-    Re = R_t @ Rc.T
-    e_r = 0.5 * np.array([Re[2, 1] - Re[1, 2], Re[0, 2] - Re[2, 0], Re[1, 0] - Re[0, 1]])
+    Re = R_t @ T[:3, :3].T
+    c = float(np.clip((np.trace(Re) - 1.0) / 2.0, -1.0, 1.0))
+    v = 0.5 * np.array([Re[2, 1] - Re[1, 2], Re[0, 2] - Re[2, 0], Re[1, 0] - Re[0, 1]])
+    s = float(np.linalg.norm(v))
+    th = math.atan2(s, c)
+    if s > 1e-9:
+        e_r = v / s * th
+    elif c > 0:
+        e_r = np.zeros(3)
+    else:                                    # θ = 180°：轴取 (Re+I)/2 = a·aᵀ 的最大列
+        M = (Re + np.eye(3)) / 2.0
+        k = int(np.argmax(np.diag(M)))
+        a = M[:, k] / math.sqrt(max(M[k, k], 1e-12))
+        e_r = a / max(np.linalg.norm(a), 1e-12) * math.pi
     return np.concatenate([e_p, e_r])
 
 
