@@ -77,7 +77,6 @@ def main():
     raw = json.load(open("data/unload_plan3_raw.json", encoding="utf-8"))
     parts = raw["parts"]
     t0 = time.time()
-    Qh = {m: np.array(raw["place"][m]["hi"]) for m in raw["place"]}
     out_parts = []
     removed = set()
     prev = None
@@ -87,8 +86,11 @@ def main():
         ge = G.grip_state(mode, p["width"], p["yoff"], pi=0.0, rho=(BS.TRAY_PLACE_RETRACT if mode == "front" else 0.0), empty=True)
         gh = G.grip_state(mode, p["width"], p["yoff"], pi=0.0, rho=0.0)
         gf = G.full_grip(mode)
-        pl = raw["place_legs"][mode][str(st)]
-        entry = dict(layer=p["layer"], cols=p["cols"], mode=mode, station=st, ypl=p["ypl"], yoff=p["yoff"], width=p["width"], widths=p["widths"])
+        if p.get("pw"):                                   # 纯吸盘方案：吸盘板宽度随箱组
+            ge["pw"] = gh["pw"] = p["pw"]
+        pk = mode + "_" + p["dir"] if "dir" in p else mode                    # 左转/右转到车尾对应不同的下放/抬起路径
+        pl = raw["place_legs"][pk][str(st)]
+        entry = dict(layer=p["layer"], cols=p["cols"], mode=mode, dir=p.get("dir"), pw=p.get("pw"), station=st, ypl=p["ypl"], yoff=p["yoff"], width=p["width"], widths=p["widths"])
         # ---- chain_a / chain_u
         amode = "pick" if mode == "top" else "free"
         appr = p["approach"]
@@ -96,7 +98,7 @@ def main():
             entry["chain_a"] = build_chain([(appr, okfn(st, False, amode, removed, [ge]))], [])
         else:
             pm, pst = prev["mode"], prev["station"]
-            up = raw["place_legs"][pm][str(pst)]["up"]
+            up = raw["place_legs"][pm + "_" + prev["dir"] if prev.get("dir") else pm][str(pst)]["up"]
             gu = G.grip_state(pm, BS.BOX_W * BS.MAX_GROUP, 0.0, pi=0.0, rho=BS.TRAY_PLACE_RETRACT, empty=True)
             f_up = okfn(pst, False, "free", removed, [gu])
             if pst == st:
@@ -105,6 +107,8 @@ def main():
             else:
                 entry["chain_u"] = build_chain([(up, f_up)], [])
                 entry["chain_a"] = build_chain([(appr, okfn(st, False, amode, removed, [ge]))], [])
+        if p.get("contact"):                               # 臂笛卡尔直线推进贴箱（慢速）
+            entry["chain_in"] = build_chain([(p["contact"], okfn(st, False, "pick", removed, [ge]))], [])
         # ---- chain_b：拔出 + 搬运 + 下放
         rem_h = removed | boxes
         pull, carry, down = p["pull"], p["carry"], pl["down"]
@@ -119,10 +123,10 @@ def main():
         print(f"  {k + 1}/{len(parts)} 层{p['layer']} 列{p['cols']} {mode} 站位{st:+.1f}  chain_b {len(entry['chain_b']['q'])} 点, 停点 {len(entry['chain_b']['stops'])}  {time.time()-t0:.0f}s", flush=True)
     # 最后一组之后的抬起
     last = out_parts[-1]
-    pl = raw["place_legs"][last["mode"]][str(last["station"])]
+    pl = raw["place_legs"][last["mode"] + "_" + last["dir"] if last.get("dir") else last["mode"]][str(last["station"])]
     gu = G.grip_state(last["mode"], BS.BOX_W * BS.MAX_GROUP, 0.0, pi=0.0, rho=BS.TRAY_PLACE_RETRACT, empty=True)
     tail = build_chain([(pl["up"], okfn(last["station"], False, "free", removed, [gu]))], [])
-    out = dict(version=3, box=raw["box"], place=raw["place"], start=raw["start"], parts=out_parts, tail=tail,
+    out = dict(version=raw.get("version", 3), simple=raw.get("simple", False), box=raw["box"], place=raw["place"], start=raw["start"], parts=out_parts, tail=tail,
                unreachable=raw["unreachable"], limits=dict(front_layer_min=BS.FRONT_LAYER_MIN, stroke=BS.STROKE,
                                                           place_push=BS.PLACE_PUSH, tray_retract=BS.TRAY_RETRACT,
                                                           tray_place_retract=BS.TRAY_PLACE_RETRACT, place_x=BS.PLACE_X, bed_half_w=BS.BED_HALF_W))

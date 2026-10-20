@@ -16,7 +16,7 @@ VMAX = np.radians(arm_abb.MAX_SPEED_DEG)
 SERVO_LAG = (6e4 + 3000.0) / 1e7
 GRIP_SPEED = 0.40                       # 夹具滑轴速度 [m/s]
 SUCTION_S, RELEASE_S = 0.3, 0.3         # 吸合/释放时间 [s]
-ACC_TIME = 0.8                          # 加速到最大速度的时间 [s]（tools/cycle_opt3.py：0.8 s + 90% 是 10° 侧坡倾斜<2°、裕度>=9 cm 的最快档；再快侧坡倾斜到 5°）
+ACC_TIME = 0.8                          # 加速到最大速度的时间 [s]（0.8 s + 90% 速度：10° 各坡向倾斜 <=1.8°、裕度 >=9.7 cm；0.6 s + 100% 可到 8 s/箱，但 270° 侧坡倾斜 6°、吸盘与侧壁最深贴进 86 mm，不采用）
 SPEED_SCALE = 0.9
 
 
@@ -35,11 +35,13 @@ class UnloadPlayer3(_Old):
         self.cur = None
         self.log = []
         self.station_now = 0.0
+        self.simple = bool(plan.get("simple", False))
         self.order = [(c, p["layer"]) for p in self.parts for c in p["cols"]]
 
     # ---------------------------------------------------------------- 构造任务序列
-    def _traj(self, chain):
-        return TJ.Trajectory(np.array(chain["q"]), self.vmax, self.amax, chain["stops"])
+    def _traj(self, chain, slow=False):
+        k = 0.5 if slow else 1.0                                        # 贴箱/拔出的最后一段放慢
+        return TJ.Trajectory(np.array(chain["q"]), self.vmax * k, self.amax * k * k, chain["stops"])
 
     def _part_items(self, k, p):
         items = []
@@ -53,11 +55,18 @@ class UnloadPlayer3(_Old):
         elif k == 0 or abs(p["station"] - self.station_now) > 1e-6:
             items.append(("drive", p["station"]))
         items.append(("traj", self._traj(p["chain_a"]), "approach"))
-        items.append(("grip", S, rho_empty, S / GRIP_SPEED))              # 吸盘板伸出贴箱
+        if self.simple:                                                   # 纯吸盘：臂慢速直线推进贴箱，没有吸盘/底托的相对运动
+            if "chain_in" in p:
+                items.append(("traj", self._traj(p["chain_in"], slow=True), "in"))
+        else:
+            items.append(("grip", S, rho_empty, S / GRIP_SPEED))              # 吸盘板伸出贴箱
         items.append(("wait", SUCTION_S, "grab", p))
-        items.append(("grip", 0.0, 0.0 if front else 0.0, (BS.TRAY_RETRACT if front else S) / GRIP_SPEED))   # 吸盘板缩回，底托同步前伸
+        if not self.simple:
+            items.append(("grip", 0.0, 0.0 if front else 0.0, (BS.TRAY_RETRACT if front else S) / GRIP_SPEED))   # 吸盘板缩回，底托同步前伸
         items.append(("traj", self._traj(p["chain_b"]), "carry"))
-        if front:
+        if self.simple:
+            items.append(("wait", RELEASE_S, "release", p))
+        elif front:
             items.append(("grip", BS.PLACE_PUSH, BS.TRAY_PLACE_RETRACT, BS.PLACE_PUSH / GRIP_SPEED))   # 吸盘板前推、底托同步回缩
             items.append(("wait", RELEASE_S, "release", p))
             items.append(("grip", 0.0, BS.TRAY_PLACE_RETRACT, BS.PLACE_PUSH / GRIP_SPEED))

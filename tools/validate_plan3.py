@@ -38,7 +38,7 @@ def run(alpha=0.0, phi=0.0, nparts=None, drive=True, acc=None, scale=None, susp=
                 rem = rem                                  # 已取走的箱子
             else:
                 rem = rem | set((c, p["layer"]) for c in p["cols"])
-            gs = dict(width=p["width"] if holding else BS.BOX_W * BS.MAX_GROUP, top=(p["mode"] == "top"), pi=pi, rho=rho, yoff=p["yoff"] if holding else 0.0)
+            gs = dict(width=p["width"], top=(p["mode"] == "top"), pi=pi, rho=rho, yoff=p["yoff"], pw=(p.get("pw") or BS.PLATE_HALF_W), tray=not plan.get("simple", False))
             y_now = P._plane_y(d.d.xpos[d.base]) if P.drive_enabled else 0.0
             pr = col.check(qa, station_y=y_now, holding=holding, mode="pick", removed=rem, grip=gs)
             # 只看：臂连杆之间/连杆与环境的贯穿 > 6 mm；夹具与箱墙/辊床的接触是允许的

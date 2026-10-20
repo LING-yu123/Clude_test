@@ -29,7 +29,7 @@ PLATE_Y_MAX = 1.5 - BS.PLATE_HALF_W - 0.06                   # 吸盘板中心�
 BOXC_FRONT = np.array([0.0, 0.0, 0.222 + BS.BOX_D / 2])      # 箱组中心在 J7 系（前吸，吸盘板缩回时）
 BOXC_TOP = np.array([0.0, 0.0, 0.222 + BS.BOX_H / 2])
 TRAY_T = BS.TRAY_T
-PLACE_Z = {"front": BS.BED_TOP + TRAY_T + BS.BOX_H / 2 + 0.003, "top": BS.BED_TOP + 0.005 + BS.BOX_H / 2}
+PLACE_Z = {"front": BS.BED_TOP + BS.BOX_H / 2 + 0.012, "top": BS.BED_TOP + 0.005 + BS.BOX_H / 2}      # 纯吸盘：箱底离辊床 4~5 mm 释放
 PLACE_HI = {"front": 0.06, "top": 0.12}                      # 预放点比放箱点高多少（前吸再高 IK 无解）
 
 

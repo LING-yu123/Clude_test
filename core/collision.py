@@ -17,7 +17,7 @@ import numpy as np
 import mujoco
 
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))     # 工程根目录
-MARGIN = 0.02          # 臂与环境保持的最小距离 [m]（接触检测提前量）
+MARGIN = 0.008         # 臂与环境保持的最小距离 [m]（接触检测提前量）
 ARM_Z0 = 0.79          # 臂座高度（世界系）
 
 # 碰撞位：连杆 i 用 1<<i（i=1..7），夹具 G，负载 P
@@ -89,7 +89,7 @@ class Collider:
         scene.append(_box("wall_back", (BS.WALL_FRONT + BS.BOX_D, -1.5, 0), (2.998, 1.5, 2.85), 0, w))
         scene.append("</body>")
         # ---- 臂 ----
-        mast = ('<geom name="mast_pole" type="capsule" fromto="-0.26 -0.34 0.10 -0.26 -0.34 1.12" size="0.09" '
+        mast = (f'<geom name="mast_pole" type="capsule" fromto="{BS.MAST_XY[0]} {BS.MAST_XY[1]} 0.10 {BS.MAST_XY[0]} {BS.MAST_XY[1]} {BS.MAST_TOP}" size="0.09" '
                 f'contype="0" conaffinity="0"/>')            # 相机立柱：单独设置位，见下
         bodies, close = "", 0
         for i, j in enumerate(AB.JOINTS, start=1):
@@ -127,7 +127,9 @@ class Collider:
         self.g_bed = [g(n) for n in self.bed_names]
         self.g_box = g("g_box")
         self.g_plate, self.g_tray = g("g_plate"), g("g_tray")
+        self.g_floor = g("floor")
         self.tray_ct = int(self.m.geom_contype[self.g_tray])
+        self.tray_ca = int(self.m.geom_conaffinity[self.g_tray])
         self.qadr = [self.m.jnt_qposadr[mujoco.mj_name2id(self.m, mujoco.mjtObj.mjOBJ_JOINT, f"J{i}")] for i in range(1, 8)]
         self.scene_body = mujoco.mj_name2id(self.m, mujoco.mjtObj.mjOBJ_BODY, "scene")
         self.mocap = self.m.body_mocapid[self.scene_body]
@@ -154,13 +156,16 @@ class Collider:
         if mode == "pick":                                   # 夹具/负载可以贴着箱墙
             for gid in self.g_wall:
                 self.m.geom_conaffinity[gid] &= ~GRIP_BITS
+            self.m.geom_conaffinity[self.g_floor] &= ~P_BIT              # 底层箱子的箱底贴着车厢地板拔出（滑动接触）
         if mode == "place":                                  # 负载和底托可以压在辊床上
             for gid in self.g_bed:
                 self.m.geom_conaffinity[gid] &= ~(P_BIT | T_BIT)
         self.m.geom_contype[self.g_box] = P_BIT if holding else 0
-        self.m.geom_contype[self.g_tray] = 0 if top else self.tray_ct          # 顶吸没有底托
+        tray_on = bool(grip.get("tray", False)) and not top                # 已取消底托（纯吸盘）；关掉时 contype 和 conaffinity 都要清零（碰撞是对称的）
+        self.m.geom_contype[self.g_tray] = self.tray_ct if tray_on else 0
+        self.m.geom_conaffinity[self.g_tray] = self.tray_ca if tray_on else 0
         self.m.geom_pos[self.g_plate, 2] = 0.196 + pi
-        self.m.geom_size[self.g_plate] = [BS.PLATE_TOP_HALF if top else BS.PLATE_FRONT_HALF, BS.PLATE_HALF_W, 0.026]
+        self.m.geom_size[self.g_plate] = [BS.PLATE_TOP_HALF if top else BS.PLATE_FRONT_HALF, grip.get("pw", BS.PLATE_HALF_W), 0.026]
         self.m.geom_pos[self.g_tray] = [BS.TRAY_X, 0.0, BS.TRAY_Z_HOLD - rho]
         hw = grip.get("width", BS.BOX_W) / 2
         yo = grip.get("yoff", 0.0)                           # 这组箱子的中心相对吸盘板中心的横向偏移（ee y）
